@@ -90,6 +90,11 @@ table.pay thead th{white-space:normal}
 .reasons{display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto}
 .reasons div{padding:6px 0;border-bottom:1px solid var(--line);font-size:14px;overflow-wrap:anywhere}
 details summary{cursor:pointer;font-weight:600}
+.pairgroup{border-top:1px solid var(--line);padding-top:8px}
+.pairrow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:4px 16px;padding:8px 0;border-bottom:1px solid var(--line)}
+.pairrow>.label{grid-column:1/-1}
+.pairside{min-width:0;overflow-wrap:anywhere}
+@media (max-width:520px){.pairrow{grid-template-columns:minmax(0,1fr)}}
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:9px 14px;border-radius:6px;font-size:14px;max-width:calc(100% - 32px)}
 fieldset{border:0;padding:0;margin:0}
 #qrOverlay{position:fixed;inset:0;z-index:20;background:#ffffff;display:flex;align-items:center;justify-content:center;padding:calc(16px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
@@ -237,7 +242,7 @@ function renderStudent(){
   main.className="card";
   if(!st){ setStudent("none",`<p style="margin:0">Waiting for your instructor to start the exercise. Keep this page open.</p>`); return; }
   const m=myStatus();
-  if(!m.joined){ setStudent("join-"+st.session,`<div class="stack"><h2>Join the exercise</h2><p style="margin:0">You'll be matched with an anonymous classmate. Nobody will see your name next to your choice.</p><div><button class="primary" id="joinBtn">Join</button></div></div>`,()=>$("joinBtn").onclick=join); return; }
+  if(!m.joined){ setStudent("join-"+st.session,`<form class="stack" id="joinForm"><h2>Join the exercise</h2><p style="margin:0">You'll be matched with an anonymous classmate. Your classmates won't see your name. Your instructor will.</p><label class="stack" style="gap:6px"><span class="label">Your name</span><input id="joinName" maxlength="60" autocomplete="name" required style="max-width:320px"></label><div><button class="primary" id="joinBtn" type="submit">Join</button></div></form>`,()=>{ $("joinForm").onsubmit=e=>{e.preventDefault(); join();}; }); return; }
   if(!m.sheet){ setStudent("wait-sheet",`<div class="stack"><h2>You're in</h2><p class="muted" style="margin:0">Waiting for your instructor to launch the game. Keep this page open.</p></div>`); return; }
 
   const head=`<div class="row" style="justify-content:space-between"><div><div class="label">Your firm${st.roundType==="fggf"?" this round":""}</div><div class="sheetcode">${esc(m.sheet)}</div></div><div class="muted mono" style="font-size:13px">Round ${st.round}</div></div>${m.switched?`<p class="note" style="margin:0">This round, everyone runs an FG or a GF firm, so your payoffs differ from earlier rounds. Check your table.</p>`:""}`;
@@ -262,9 +267,8 @@ function renderStudent(){
 
   // open, not submitted
   const form=`<fieldset class="stack" id="form">
-    <label class="stack" style="gap:6px"><span class="label">1 · Probability your rival cuts (0–100%)</span><input id="belief" type="number" inputmode="numeric" min="0" max="100" step="1" style="max-width:140px"></label>
-    <label class="stack" style="gap:6px"><span class="label">2 · In one sentence, why do you expect that?</span><textarea id="reason" maxlength="400"></textarea></label>
-    <div class="stack" style="gap:6px"><span class="label">3 · Your choice</span><div class="choice"><button type="button" class="hold" id="chHold" aria-pressed="false">HOLD</button><button type="button" class="cut" id="chCut" aria-pressed="false">CUT</button></div></div>
+    <div class="stack" style="gap:6px"><span class="label">1 · Your choice</span><div class="choice"><button type="button" class="hold" id="chHold" aria-pressed="false">HOLD</button><button type="button" class="cut" id="chCut" aria-pressed="false">CUT</button></div></div>
+    <label class="stack" style="gap:6px"><span class="label">2 · In one sentence, why did you choose this?</span><textarea id="reason" maxlength="400"></textarea></label>
     <div><button class="primary" id="submitBtn">Submit choice</button></div></fieldset>`;
   setStudent(`open-${st.round}`,`<div class="stack">${head}${sheetBody}${chatBlock(m,false)}${form}</div>`,()=>{
     S.draft={choice:null};
@@ -346,7 +350,9 @@ async function acceptEscrow(amount){
   }catch(e){ toast("Couldn't put the money in escrow. Try again."); }
 }
 async function join(){
-  try{ await S.db.doc("players/"+S.uid).set({session:S.state.session,joinedAt:Date.now(),subs:{}}); }
+  const name=($("joinName")&&$("joinName").value||"").trim();
+  if(!name){ toast("Enter your name to join."); return; }
+  try{ await S.db.doc("players/"+S.uid).set({session:S.state.session,name,joinedAt:Date.now(),subs:{}}); }
   catch(e){ toast(e.code==="invalid_argument"?"Couldn't join. Reload the page and try again.":"Couldn't join. Try again."); }
 }
 function myRole(){ const p=S.pairs&&S.pairs[S.uid]; return (p&&p.role)||S.assign[S.uid]; }
@@ -363,13 +369,11 @@ async function sendReflection(){
   catch(e){ btn.disabled=false; toast("Couldn't send. Try again."); }
 }
 async function submitChoice(){
-  const b=$("belief").value.trim(), reason=$("reason").value.trim(), c=S.draft.choice;
-  const belief=Number(b);
-  if(b===""||!Number.isFinite(belief)||belief<0||belief>100){ toast("Enter a probability from 0 to 100."); return; }
+  const reason=$("reason").value.trim(), c=S.draft.choice;
   if(!reason){ toast("Add one sentence on why."); return; }
   if(!c){ toast("Choose HOLD or CUT."); return; }
   const btn=$("submitBtn"); btn.disabled=true;
-  try{ await S.db.doc("players/"+S.uid).update({subs:{[S.state.round]:{belief:Math.round(belief),reason,choice:c,at:Date.now()}}}); }
+  try{ await S.db.doc("players/"+S.uid).update({subs:{[S.state.round]:{reason,choice:c,at:Date.now()}}}); }
   catch(e){ btn.disabled=false; toast("Couldn't submit. Try again."); }
 }
 
@@ -381,7 +385,7 @@ function entriesForRound(r){
 }
 function stats(entries){
   const by={}; for(const s of ["G","FG","GF","NG"]) by[s]={n:0,cut:0,bel:0};
-  for(const e of entries){ const b=by[e.sheet]; if(!b) continue; b.n++; if(e.choice==="cut") b.cut++; b.bel+=e.belief||0; }
+  for(const e of entries){ const b=by[e.sheet]; if(!b) continue; b.n++; if(e.choice==="cut") b.cut++; }
   return by;
 }
 const pct=(a,n)=>n?Math.round(100*a/n):null;
@@ -442,7 +446,7 @@ function renderOwner(){
     ${fgPending?`<div class="row mono" style="gap:14px;font-size:14px"><span><strong>FG</strong> ${half}</span><span><strong>GF</strong> ${half}</span>${assignedIds.length%2?`<span class="muted">1 sits out</span>`:""}</div><div class="muted" style="font-size:13px">At launch, everyone runs an FG or a GF firm for this round.</div>`:`<div class="row mono" style="gap:14px;font-size:14px">${Object.entries(fgRound?{FG:counts.FG,GF:counts.GF}:counts).map(([k,v])=>`<span><strong>${k}</strong> ${v}</span>`).join("")}</div>`}
     <div class="muted" style="font-size:13px">${joined?(unassigned?`Assigning firms to ${unassigned} new arrival(s)…`:"Firms are assigned in matched pairs as students join (G–G, FG–GF, NG–NG), so every second arrival completes a pair."):"Share this page's link or QR code. Students appear here when they join."}</div>
     ${st.roundType==="fggf"&&L?`<div class="muted" style="font-size:13px">When you launch this round, everyone runs an FG or a GF firm for this round only. FG and GF players keep their firms; G and NG players are split between FG and GF. Each FG is paired with a GF to chat. With an odd number of players, one sits out.</div>`:""}
-    <div class="stack" style="gap:6px"><div class="label">Test players</div><div class="row"><select id="botN" aria-label="Number of test players">${Array.from({length:40},(_,i)=>i+1).map(n=>`<option value="${n}" ${n===S.botN?"selected":""}>${n}</option>`).join("")}</select><select id="botMode" aria-label="How test players choose"><option value="textbook" ${S.botMode==="textbook"?"selected":""}>Textbook play</option><option value="classroom" ${S.botMode==="classroom"?"selected":""}>Classroom-like</option></select><button id="botBtn" ${st.phase==="closed"?"disabled":""}>Add test players</button></div><div class="muted" style="font-size:13px">${S.botMode==="textbook"?"Textbook: G, GF and FG cut; NG holds; GF posts any bond and holds; FG holds once its rival has posted a $6M bond.":"Classroom-like: random choices, cutting 70% of the time for G, 75% for GF, 55% for FG and 25% for NG."}</div><div class="muted" style="font-size:13px">${bots?`${bots} in this session. `:""}${st.phase==="open"?(st.roundType==="fggf"?"FG–GF pairs are already set for this round, so new test players sit it out until the next round.":"Test players added now choose right away."):(st.phase==="closed"?"Choices are closed. Add test players after you reveal results.":"Test players added now choose when you launch the next round.")}</div></div>
+    <div class="stack" style="gap:6px"><div class="label">Test players</div><div class="row"><select id="botN" aria-label="Number of test players">${Array.from({length:40},(_,i)=>i+1).map(n=>`<option value="${n}" ${n===S.botN?"selected":""}>${n}</option>`).join("")}</select><select id="botMode" aria-label="How test players choose"><option value="textbook" ${S.botMode==="textbook"?"selected":""}>Textbook play</option><option value="classroom" ${S.botMode==="classroom"?"selected":""}>Classroom-like</option></select><button id="botBtn" ${st.phase==="closed"?"disabled":""}>Add test players</button></div><div class="muted" style="font-size:13px">${S.botMode==="textbook"?"Textbook: G, GF and FG cut; NG holds. With escrow on, a test FG demands $6M, a test GF accepts any demand of $5M or more and then holds, and a test FG holds once $5M or more is in escrow.":"Classroom-like: random choices, cutting 70% of the time for G, 75% for GF, 55% for FG and 25% for NG."}</div><div class="muted" style="font-size:13px">${bots?`${bots} in this session. `:""}${st.phase==="open"?(st.roundType==="fggf"?"FG–GF pairs are already set for this round, so new test players sit it out until the next round.":"Test players added now choose right away."):(st.phase==="closed"?"Choices are closed. Add test players after you reveal results.":"Test players added now choose when you launch the next round.")}</div></div>
     <div class="row"><button id="qrBtn">Show QR code for students</button><button data-hash="student">Preview as a student</button></div>
   </div>`;
 
@@ -457,6 +461,48 @@ function renderOwner(){
   const bm=$("botMode"); if(bm) bm.onchange=()=>{S.botMode=bm.value; render();}; on("resetBtn",startSession);
   main.querySelectorAll("[data-vr]").forEach(b=>b.onclick=()=>{S.viewRound=Number(b.dataset.vr); wire(); render();});
   main.querySelectorAll("[data-rf]").forEach(b=>b.onclick=()=>{S.reasonFilter=b.dataset.rf; render();});
+  main.querySelectorAll("[data-names]").forEach(b=>b.onclick=()=>{S.showNames=b.dataset.names==="1"; render();});
+  main.querySelectorAll("details.pairgroup").forEach((d,i)=>{ if(S.openGroups&&S.openGroups.has(d.querySelector("summary").textContent.split(" ")[0])) d.open=true; d.ontoggle=()=>{ S.openGroups=S.openGroups||new Set(); const k=d.querySelector("summary").textContent.split(" ")[0]; d.open?S.openGroups.add(k):S.openGroups.delete(k); }; });
+}
+
+/* ---- Players are numbered by arrival; names show only when the instructor turns them on ---- */
+function playerNo(uid){ const list=S.players.slice().sort((a,b)=>(a.joinedAt||0)-(b.joinedAt||0)); const i=list.findIndex(p=>p.uid===uid); return i<0?"?":i+1; }
+function who(uid){ const p=S.players.find(x=>x.uid===uid); const n="#"+playerNo(uid); return (S.showNames&&p&&p.name)?n+" "+p.name:n; }
+const FIRM_ORDER={G:0,FG:1,GF:2,NG:3};
+function pairsSection(entries){
+  const byId=Object.fromEntries(entries.map(e=>[e.uid,e]));
+  const groups={}; const seen=new Set();
+  for(const e of entries){
+    if(!e.pUid) continue;
+    const mutual=e.mutual!==false && byId[e.pUid] && byId[e.pUid].pUid===e.uid;
+    const key=mutual?[e.uid,e.pUid].sort().join("|"):e.uid+"|reused";
+    if(seen.has(key)) continue; seen.add(key);
+    let a=e, b=mutual?byId[e.pUid]:{uid:e.pUid,sheet:e.pSheet,choice:e.pChoice,pay:null,reason:(byId[e.pUid]||{}).reason};
+    if(FIRM_ORDER[a.sheet]>FIRM_ORDER[b.sheet]) [a,b]=[b,a];
+    const type=`${a.sheet}–${b.sheet}`;
+    (groups[type]=groups[type]||[]).push({a,b,mutual});
+  }
+  const types=Object.keys(groups).sort((x,y)=>{const [x1,x2]=x.split("–"),[y1,y2]=y.split("–"); return FIRM_ORDER[x1]-FIRM_ORDER[y1]||FIRM_ORDER[x2]-FIRM_ORDER[y2];});
+  if(!types.length) return `<div class="card stack"><h2 style="margin:0">Pairs</h2><p class="muted" style="margin:0">No matched pairs this round.</p></div>`;
+  const pc=(k,n)=>n?Math.round(100*k/n)+"%":"–";
+  const avg=xs=>{const v=xs.filter(x=>x!=null); return v.length?"$"+(v.reduce((t,x)=>t+x,0)/v.length).toFixed(1)+"M":"–";};
+  const tag=c=>`<span class="tag ${c}">${c==="hold"?"HOLD":"CUT"}</span>`;
+  const rows=types.map(t=>{
+    const g=groups[t], n=g.length, [f1,f2]=t.split("–");
+    const bh=g.filter(x=>x.a.choice==="hold"&&x.b.choice==="hold").length, bc=g.filter(x=>x.a.choice==="cut"&&x.b.choice==="cut").length;
+    const pay = f1===f2 ? avg(g.flatMap(x=>[x.a.pay,x.b.pay]))+" each" : `${f1} ${avg(g.map(x=>x.a.pay))} · ${f2} ${avg(g.map(x=>x.b.pay))}`;
+    return `<tr><th>${t}</th><td class="mono">${n}</td><td class="mono">${pc(bh,n)}</td><td class="mono">${pc(bc,n)}</td><td class="mono">${pc(n-bh-bc,n)}</td><td class="mono">${pay}</td></tr>`;
+  }).join("");
+  const side=x=>`<div class="pairside"><div><strong>${esc(who(x.uid))}</strong> <span class="mono muted">${x.sheet}</span> ${tag(x.choice)} <span class="mono">${x.pay==null?"":"$"+x.pay+"M"}</span>${x.bond?` <span class="mono muted">escrow $${x.bondAmt}M</span>`:""}</div>${x.reason?`<div class="muted" style="font-size:14px">${esc(x.reason)}</div>`:""}</div>`;
+  const lists=types.map(t=>{
+    const g=groups[t];
+    return `<details class="pairgroup"><summary>${t} · ${g.length} pair${g.length===1?"":"s"}</summary><div class="stack" style="gap:8px;margin-top:8px">${g.map((x,i)=>`<div class="pairrow"><div class="label">Pair ${i+1}${x.mutual?"":" · re-used rival"}</div>${side(x.a)}${side(x.b)}</div>`).join("")}</div></details>`;
+  }).join("");
+  const reusedNote = types.some(t=>groups[t].some(x=>!x.mutual)) ? `<div class="muted" style="font-size:13px">A re-used rival is a classmate whose choice was used a second time because the count in that group was odd. Only the first player's payoff is shown.</div>` : "";
+  return `<div class="card stack"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Pairs</h2><div class="seg" role="group" aria-label="Names"><button data-names="0" aria-pressed="${!S.showNames}">Hide names</button><button data-names="1" aria-pressed="${!!S.showNames}">Show names</button></div></div>
+  <div class="tablewrap"><table><thead><tr><th>Pair type</th><th>Pairs</th><th>Both held</th><th>Both cut</th><th>One of each</th><th>Average payoff</th></tr></thead><tbody>${rows}</tbody></table></div>
+  ${S.res&&S.res.type==="fggf"&&S.res.bond?escrowSummary(entries):""}
+  <div class="stack" style="gap:6px">${lists}</div>${reusedNote}</div>`;
 }
 function sheetRef(u){
   return `<details class="card"><summary>Payoff tables as students see them</summary><div class="stack" style="margin-top:12px">${["G","FG","GF","NG"].map(s=>`<div><h3>Firm ${s}</h3>${payTableHTML(s,u)}</div>`).join("")}</div></details>`;
@@ -470,33 +516,29 @@ function resultsPanel(){
   const fg=pct(by.FG.cut,by.FG.n), ng=pct(by.NG.cut,by.NG.n), g=pct(by.G.cut,by.G.n), gf=pct(by.GF.cut,by.GF.n);
   const fmt=v=>v==null?"–":v+"%";
   const gap = fg!=null&&ng!=null ? (fg-ng>0?"+":"")+(fg-ng)+" pts" : "–";
-  const head = `<div class="stats">
-    <div class="card"><div class="label">FG cut rate</div><div class="big mono">${fmt(fg)}</div><div class="muted" style="font-size:13px">Untempted, facing a tempted rival</div></div>
-    <div class="card"><div class="label">NG cut rate</div><div class="big mono">${fmt(ng)}</div><div class="muted" style="font-size:13px">Same payoffs, untempted rival</div></div>
-    <div class="card"><div class="label">Fear of greed</div><div class="big mono">${gap}</div><div class="muted" style="font-size:13px">FG minus NG</div></div></div>`;
   const vrFg = revealed ? S.res.type==="fggf" : (vr===st.round && st.roundType==="fggf" && st.phase!=="lobby");
-  const rows=(vrFg?["FG","GF"]:["G","FG","GF","NG"]).map(s=>{const b=by[s]; const p=pct(b.cut,b.n); return `<tr><th>${s}</th><td class="mono">${b.n}</td><td><div class="row" style="flex-wrap:nowrap;gap:8px"><div class="bar" style="flex:1"><span style="width:${p||0}%"></span></div><span class="mono" style="min-width:3.2em">${fmt(p)}</span></div></td><td class="mono">${b.n?Math.round(b.bel/b.n)+"%":"–"}</td></tr>`;}).join("");
-  const bySheet=`<div class="tablewrap"><table><thead><tr><th>Firm</th><th>n</th><th>Cut</th><th>Mean belief rival cuts</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  const card=(label,val,sub)=>`<div class="card"><div class="label">${label}</div><div class="big mono">${val}</div><div class="muted" style="font-size:13px">${sub}</div></div>`;
+  const none=s=>`No ${s} firms in this round yet`;
+  const head = vrFg
+    ? `<div class="stats">${card("FG cut rate",fmt(fg),by.FG.n?"Untempted, facing a tempted rival":none("FG"))}${card("GF cut rate",fmt(gf),by.GF.n?"Tempted, facing an untempted rival":none("GF"))}${card("Players",String(by.FG.n+by.GF.n),"Every firm is FG or GF this round")}</div>`
+    : `<div class="stats">${card("FG cut rate",fmt(fg),by.FG.n?"Untempted, facing a tempted rival":none("FG"))}${card("NG cut rate",fmt(ng),by.NG.n?"Same payoffs, untempted rival":none("NG"))}${card("Fear of greed",gap,(by.FG.n&&by.NG.n)?"FG minus NG":"Needs both FG and NG firms")}</div>`;
+  const shown=(vrFg?["FG","GF"]:["G","FG","GF","NG"]).filter(k=>by[k].n>0);
+  const rows=(shown.length?shown:(vrFg?["FG","GF"]:["G","FG","GF","NG"])).map(s=>{const b=by[s]; const p=pct(b.cut,b.n); return `<tr><th>${s}</th><td class="mono">${b.n}</td><td><div class="row" style="flex-wrap:nowrap;gap:8px"><div class="bar" style="flex:1"><span style="width:${p||0}%"></span></div><span class="mono" style="min-width:3.2em">${fmt(p)}</span></div></td></tr>`;}).join("");
+  const bySheet=`<div class="tablewrap"><table><thead><tr><th>Firm</th><th>n</th><th>Cut</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 
   let pairT="";
-  if(revealed){
-    const pt={};
-    for(const e of entries){ if(!e.pairType) continue; const k=e.pairType; pt[k]=pt[k]||{n:0,held:0,pay:0}; pt[k].n++; if(e.choice==="hold") pt[k].held++; pt[k].pay+=e.pay; }
-    const order=Object.keys(pt).sort();
-    const bonds = entries.filter(e=>e.sheet==="GF"&&e.bond).length, gfs=entries.filter(e=>e.sheet==="GF").length;
-    pairT=`<div class="card stack"><h2 style="margin:0">Payoffs by pairing</h2><p class="muted" style="margin:0;font-size:13px">Each row is from the first-named player's side.</p><div class="tablewrap"><table><thead><tr><th>Pairing</th><th>Players</th><th>Held</th><th>Mean payoff</th></tr></thead><tbody>${order.map(k=>`<tr><th>${esc(k)}</th><td class="mono">${pt[k].n}</td><td class="mono">${fmt(pct(pt[k].held,pt[k].n))}</td><td class="mono">$${(pt[k].pay/pt[k].n).toFixed(1)}M</td></tr>`).join("")||`<tr><td colspan="4" class="muted">No matched pairs.</td></tr>`}</tbody></table></div>${S.res.type==="fggf"&&S.res.bond?escrowSummary(entries):""}${S.res.reused?`<div class="muted" style="font-size:13px">${S.res.reused} player(s) were matched with a re-used rival because counts were uneven; the rival's own payoff came from their real pairing.</div>`:""}</div>`;
-  }
+  if(revealed){ pairT=pairsSection(entries); }
 
   const rf=S.reasonFilter;
   const filt=entries.filter(e=>rf==="all"||e.sheet===rf);
   const reasons=`<div class="card stack"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Reasons</h2><div class="seg">${["all","G","FG","GF","NG"].map(s=>`<button data-rf="${s}" aria-pressed="${rf===s}">${s==="all"?"All":s}</button>`).join("")}</div></div>
-    <div class="reasons">${filt.length?filt.map(e=>`<div><span class="tag ${e.choice}">${e.choice==="hold"?"HOLD":"CUT"}</span> <span class="mono muted" style="font-size:12px">${e.sheet} · ${e.belief}%</span><br>${esc(e.reason)}</div>`).join(""):`<div class="muted">Reasons appear here as students submit.</div>`}</div></div>`;
+    <div class="reasons">${filt.length?filt.map(e=>`<div><span class="tag ${e.choice}">${e.choice==="hold"?"HOLD":"CUT"}</span> <span class="mono muted" style="font-size:12px">${e.sheet}</span><br>${esc(e.reason)}</div>`).join(""):`<div class="muted">Reasons appear here as students submit.</div>`}</div></div>`;
 
   let reflections="";
   if(revealed){
-    const refl=S.players.map(p=>{ const s=p.subs&&p.subs[vr]; const e=S.res.per[p.uid]; return (s&&s.reflection&&e)?{...e,reflection:s.reflection}:null; }).filter(Boolean).filter(e=>rf==="all"||e.sheet===rf);
+    const refl=S.players.map(p=>{ const s=p.subs&&p.subs[vr]; const e=S.res.per[p.uid]; return (s&&s.reflection&&e)?{...e,uid:p.uid,reflection:s.reflection}:null; }).filter(Boolean).filter(e=>rf==="all"||e.sheet===rf);
     reflections=`<div class="card stack"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Reflections</h2><span class="muted" style="font-size:13px">Was this different from your expectation? If so, why?</span></div>
-    <div class="reasons">${refl.length?refl.map(e=>`<div><span class="mono muted" style="font-size:12px">${e.pairType} · you ${e.choice} / rival ${e.pChoice} · $${e.pay}M</span><br>${esc(e.reflection)}</div>`).join(""):`<div class="muted">Reflections appear here as students send them.${rf==="all"?"":" Showing "+rf+" only."}</div>`}</div></div>`;
+    <div class="reasons">${refl.length?refl.map(e=>`<div><span class="mono muted" style="font-size:12px">${esc(who(e.uid))} · ${e.pairType} · you ${e.choice} / rival ${e.pChoice} · $${e.pay}M</span><br>${esc(e.reflection)}</div>`).join(""):`<div class="muted">Reflections appear here as students send them.${rf==="all"?"":" Showing "+rf+" only."}</div>`}</div></div>`;
   }
   return `<div class="card stack"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Results${revealed?"":" so far"}</h2>${tabs}</div>${head}${bySheet}${revealed?"":`<p class="muted" style="margin:0;font-size:13px">Live counts from submissions. Payoffs appear after you match and reveal.</p>`}</div>${pairT}${reasons}${reflections}`;
 }
@@ -531,14 +573,14 @@ function botEscrowReason(role,choice,amt){
     FG:{hold:amt?[`My rival's $${amt}M escrow takes away their reason to cut.`,5,25]:["I'm betting my rival won't take the bait.",5,30],
         cut:amt?["Even with escrow, I don't trust my rival to hold.",50,80]:["My rival gains from cutting and wouldn't commit, so I can't risk holding.",60,90]}
   };
-  const [t,lo,hi]=R[role][choice]; return {reason:"Test player: "+t,belief:lo+rnd(hi-lo+1)};
+  const [t]=R[role][choice]; return {reason:"Test player: "+t};
 }
 function botHasChosen(uid,r,c){ if(c&&c.chosen.has(uid)) return true; const p=botById(uid); return !!(p&&p.subs&&p.subs[r]&&p.subs[r].choice); }
 async function botChoose(bot,role,amt,r,c){
   if(botHasChosen(bot.uid,r,c)) return; if(c) c.chosen.add(bot.uid);
   const choice=botEscrowChoice(bot,role,amt);
-  const {reason,belief}=botEscrowReason(role,choice,amt);
-  await S.db.doc("players/"+bot.uid).update({subs:{[r]:{belief,reason,choice,at:Date.now()}}});
+  const {reason}=botEscrowReason(role,choice,amt);
+  await S.db.doc("players/"+bot.uid).update({subs:{[r]:{reason,choice,at:Date.now()}}});
 }
 function botPairsInRound(P){
   const out={};
@@ -646,7 +688,7 @@ function scheduleAssign(){
   },700);
 }
 const BOT_CUT={G:.7,GF:.75,FG:.55,NG:.25};
-// Test players: reason and belief (chance rival cuts) fit the firm and the choice.
+// Test players: the reason fits the firm and the choice.
 const BOT_PLAY={
   G:{cut:["Cutting pays more whatever my rival does.",50,85],hold:["If we both hold we each make $8M, and I'm betting my rival sees that.",10,35]},
   GF:{cut:["Cutting pays more whatever my rival does.",40,80],hold:["I'm giving up the extra $3M to keep us both at $8M.",10,30]},
@@ -656,7 +698,7 @@ const BOT_PLAY={
 };
 async function addBots(){
   const sid=S.state.session, n=S.botN;
-  for(let i=0;i<n;i++){ await S.db.doc("players/bot-"+newId()).set({session:sid,bot:true,mode:S.botMode,joinedAt:Date.now(),subs:{}}); }
+  for(let i=0;i<n;i++){ const k=S.players.filter(p=>p.bot).length+i+1; await S.db.doc("players/bot-"+newId()).set({session:sid,bot:true,mode:S.botMode,name:"Test player "+k,joinedAt:Date.now()+i,subs:{}}); }
   toast(`Added ${n} test player${n===1?"":"s"}.`);
 }
 async function botsSubmit(pairsMap,round){
@@ -684,7 +726,7 @@ async function botsSubmit(pairsMap,round){
     }
     if(bond) bonded.add(b.uid);
     const [txt,lo,hi]=BOT_PLAY[bond?"GFbond":role][choice];
-    const entry={belief:lo+rnd(hi-lo+1),reason:"Test player: "+txt,choice,at:Date.now()}; if(bond) entry.bond=true;
+    const entry={reason:"Test player: "+txt,choice,at:Date.now()}; if(bond) entry.bond=true;
     await S.db.doc("players/"+b.uid).update({subs:{[r]:entry}});
     if(bond) await S.db.collection(`chats/${pair.chat}/msgs`).add({role:"GF",type:"bond",at:Date.now()});
   }
@@ -766,14 +808,14 @@ async function matchReveal(){
       if(eEsc){ pay-=eEsc; bondLost=true; }
       const escrowIn=qEsc||0; pay+=escrowIn;
       let qPay=payoff(q.sheet,q.choice,e.choice,u)-qEsc+eEsc;
-      per[e.uid]={sheet:e.sheet,choice:e.choice,belief:e.belief,reason:e.reason,bond:!!e.bond,bondAmt:e.bond?(e.bondAmt??st.bondAmt):null,pBond:q.bond?(q.bondAmt??st.bondAmt):null,pChoice:q.choice,pSheet:q.sheet,pay,pPay:qPay,bondLost,escrowIn,pairType:`${e.sheet}–${q.sheet}`};
+      per[e.uid]={sheet:e.sheet,choice:e.choice,reason:e.reason,pUid:q.uid,mutual:true,bond:!!e.bond,bondAmt:e.bond?(e.bondAmt??st.bondAmt):null,pBond:q.bond?(q.bondAmt??st.bondAmt):null,pChoice:q.choice,pSheet:q.sheet,pay,pPay:qPay,bondLost,escrowIn,pairType:`${e.sheet}–${q.sheet}`};
     }
   } else {
     const partner=matchOneshot(entries,st.matching);
     for(const e of entries){
       const m=partner[e.uid]; if(!m) continue; const q=m.p;
       if(!m.mutual) reused++;
-      per[e.uid]={sheet:e.sheet,choice:e.choice,belief:e.belief,reason:e.reason,pChoice:q.choice,pSheet:q.sheet,pay:payoff(e.sheet,e.choice,q.choice,u),pPay:m.mutual?payoff(q.sheet,q.choice,e.choice,u):null,pairType:`${e.sheet}–${q.sheet}`};
+      per[e.uid]={sheet:e.sheet,choice:e.choice,reason:e.reason,pUid:q.uid,mutual:!!m.mutual,pChoice:q.choice,pSheet:q.sheet,pay:payoff(e.sheet,e.choice,q.choice,u),pPay:m.mutual?payoff(q.sheet,q.choice,e.choice,u):null,pairType:`${e.sheet}–${q.sheet}`};
     }
   }
   await S.db.doc(`game/res-${st.session}-${r}`).set({round:r,type:st.roundType,bond:!!st.bond,u,reused,per});

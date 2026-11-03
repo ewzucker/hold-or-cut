@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    // Replace with your instructor account's User UID (same value as instructorUid in config.js).
+    function instructor() { return signedIn() && request.auth.uid == "H1b7On6gEgfVuCNxI75RD0zZXxo1"; }
+
+    // Game state, firm assignments, pairings and results: everyone reads, only the instructor writes.
+    match /game/{doc} {
+      allow read: if signedIn();
+      allow write: if instructor();
+    }
+
+    // Each student writes and reads only their own entry; the instructor reads all and manages test players.
+    match /players/{uid} {
+      allow read, write: if instructor() || (signedIn() && request.auth.uid == uid);
+    }
+
+    // Pair chats (FG–GF rounds). Chat ids are random and known only to the pair and the instructor.
+    match /chats/{chat}/msgs/{msg} {
+      allow read, create: if signedIn();
+      allow update, delete: if instructor();
+    }
+  }
+}
