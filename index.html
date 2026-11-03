@@ -1,0 +1,788 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>
+:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;font-size:14px;font-family:system-ui,sans-serif}
+img{max-width:100%}
+[hidden]{display:none!important}
+</style>
+<title>The 15.900 Hold or Cut Dilemma</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,500..800&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one narrow column of "term sheet" cards for students; a two-column console for the instructor. */
+:root{
+  --bg:#eef1f3; --surface:#ffffff; --line:#d3d9de; --ink:#16212b; --muted:#5b6873;
+  --accent:#1f4e8c; --accent-ink:#ffffff; --hold:#1d7a55; --hold-bg:#e2f2ea; --cut:#b23a2a; --cut-bg:#f8e4e0;
+  --warn-bg:#fff4d6; --warn:#7a5a00;
+  --f-display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --f-body:"Public Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#10161c; --surface:#18212a; --line:#2c3843; --ink:#e6ecf1; --muted:#97a4b0;
+  --accent:#7fa8e6; --accent-ink:#0d1620; --hold:#5cc499; --hold-bg:#163328; --cut:#ec8a7a; --cut-bg:#3a1f1b;
+  --warn-bg:#3a3010; --warn:#f0d27a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#10161c; --surface:#18212a; --line:#2c3843; --ink:#e6ecf1; --muted:#97a4b0;
+  --accent:#7fa8e6; --accent-ink:#0d1620; --hold:#5cc499; --hold-bg:#163328; --cut:#ec8a7a; --cut-bg:#3a1f1b;
+  --warn-bg:#3a3010; --warn:#f0d27a; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
+.wrap{max-width:1080px;margin:0 auto;padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.narrow{max-width:620px}
+header.top{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+h1{font-family:var(--f-display);font-stretch:80%;font-weight:800;font-size:30px;letter-spacing:-.01em;margin:0;text-wrap:balance}
+h2{font-family:var(--f-display);font-stretch:85%;font-weight:700;font-size:19px;margin:0 0 10px;text-wrap:balance}
+h3{font-family:var(--f-display);font-weight:600;font-size:15px;margin:0 0 6px}
+.label{font-size:11.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+.muted{color:var(--muted)}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:18px}
+.stack{display:flex;flex-direction:column;gap:14px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.grid2{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:820px){.grid2{grid-template-columns:minmax(0,1fr)}}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.pill.live{color:var(--hold);border-color:var(--hold);background:var(--hold-bg)}
+.pill.closed{color:var(--warn);border-color:var(--warn);background:var(--warn-bg)}
+.sheetcode{font-family:var(--f-display);font-stretch:75%;font-weight:800;font-size:44px;line-height:1;letter-spacing:-.01em}
+button{font:inherit;cursor:pointer;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:9px 14px;font-weight:600}
+button:hover:not(:disabled){border-color:var(--accent)}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+button:disabled{opacity:.45;cursor:default}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input,textarea,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
+textarea{width:100%;min-height:64px;resize:vertical}
+.choice{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.choice button{padding:16px;font-family:var(--f-display);font-stretch:85%;font-size:20px;font-weight:800;letter-spacing:.04em}
+.choice button[aria-pressed="true"].hold{background:var(--hold-bg);border-color:var(--hold);color:var(--hold)}
+.choice button[aria-pressed="true"].cut{background:var(--cut-bg);border-color:var(--cut);color:var(--cut)}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+thead th{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+table.pay{table-layout:fixed}
+table.pay th,table.pay td{padding:8px 6px}
+table.pay thead th:first-child,table.pay tbody th{width:26%}
+table.pay td{font-family:var(--f-mono);font-size:15px;white-space:nowrap}
+table.pay td b{font-weight:600;display:block}
+table.pay td .r{color:var(--muted);display:block;font-size:13px}
+table.pay tbody th{white-space:normal;line-height:1.25}
+table.pay thead th{white-space:normal}
+.note{background:var(--warn-bg);color:var(--warn);border-radius:6px;padding:10px 12px;font-size:14px}
+.big{font-family:var(--f-display);font-stretch:80%;font-weight:800;font-size:36px;line-height:1}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media (max-width:520px){.stats{grid-template-columns:minmax(0,1fr)}}
+.bar{height:10px;background:var(--bg);border-radius:5px;overflow:hidden;min-width:60px}
+.bar>span{display:block;height:100%;background:var(--cut)}
+.chat{display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto;padding:4px 0}
+.msg{max-width:85%;padding:7px 11px;border-radius:10px;background:var(--bg);font-size:14px;overflow-wrap:anywhere}
+.msg.me{align-self:flex-end;background:var(--accent);color:var(--accent-ink)}
+.msg.sys{align-self:center;background:var(--warn-bg);color:var(--warn);font-weight:600}
+.outcome{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.tag{font-weight:700;font-family:var(--f-display);letter-spacing:.04em}
+.tag.hold{color:var(--hold)} .tag.cut{color:var(--cut)}
+.reasons{display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto}
+.reasons div{padding:6px 0;border-bottom:1px solid var(--line);font-size:14px;overflow-wrap:anywhere}
+details summary{cursor:pointer;font-weight:600}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:9px 14px;border-radius:6px;font-size:14px;max-width:calc(100% - 32px)}
+fieldset{border:0;padding:0;margin:0}
+#qrOverlay{position:fixed;inset:0;z-index:20;background:#ffffff;display:flex;align-items:center;justify-content:center;padding:calc(16px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.qrbox{display:flex;flex-direction:column;align-items:center;gap:18px;color:#16212b;text-align:center}
+.qrtitle{font-family:var(--f-display);font-stretch:80%;font-weight:800;font-size:clamp(28px,5vw,52px);color:#16212b}
+#qrCode{width:min(70vh,82vw);aspect-ratio:1;max-width:100%}
+#qrCode img,#qrCode canvas{width:100%!important;height:auto!important;image-rendering:pixelated}
+.qrurl{font-family:var(--f-mono);font-size:clamp(14px,2vw,20px);color:#16212b;overflow-wrap:anywhere}
+#qrOverlay button{background:#ffffff;color:#16212b;border-color:#c5ccd2}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{border:0;border-radius:0;padding:7px 11px;font-weight:500}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+@media (prefers-reduced-motion:no-preference){button{transition:border-color .15s,background .15s}}
+</style>
+
+</head>
+<body>
+<div class="wrap" id="app">
+  <header class="top"><h1>The 15.900 Hold or Cut Dilemma</h1><span class="pill" id="statusPill">Connecting</span></header>
+  <div id="previewBar" class="note row" hidden style="justify-content:space-between;margin-bottom:12px"></div>
+  <div id="main" class="card"><p class="muted" style="margin:0">Loading the game…</p></div>
+</div>
+<div id="toast" hidden></div>
+<div id="qrOverlay" hidden role="dialog" aria-label="QR code for students">
+  <div class="qrbox">
+    <div class="qrtitle">Scan to join the Hold or Cut Dilemma</div>
+    <div id="qrCode"></div>
+    <div class="qrurl" id="qrUrl"></div>
+    <button id="qrClose">Close</button>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="config.js"></script>
+<script src="firebase-adapter.js"></script>
+<script>
+"use strict";
+const TEMPTED = new Set(["G","GF"]);
+const BELIEVED_RIVAL = {G:"G",FG:"GF",GF:"FG",NG:"NG"};
+const PATTERN_TARGET = {G:2,FG:1,GF:1,NG:2};
+const S = {resumed:false,botN:1,botMode:"textbook",db:null,user:null,uid:null,owner:false,state:null,me:null,assign:{},res:null,pairs:null,msgs:[],players:[],viewRound:null,reasonFilter:"all",busy:false,draft:{choice:null},studentKey:""};
+const subs = {};
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const rnd = n => { const a=new Uint32Array(1); crypto.getRandomValues(a); return a[0]%n; };
+function shuffle(arr){ const a=arr.slice(); for(let i=a.length-1;i>0;i--){const j=rnd(i+1);[a[i],a[j]]=[a[j],a[i]];} return a; }
+const newId = () => Math.random().toString(36).slice(2,8)+Date.now().toString(36).slice(-4);
+let toastT; function toast(t){ const el=$("toast"); el.textContent=t; el.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>el.hidden=true,3200); }
+
+/* ---------- payoffs ---------- */
+function table(sheet,u){ return TEMPTED.has(sheet) ? {HH:8,HC:0,CH:11,CC:5} : {HH:8,HC:0,CH:u,CC:5}; }
+function payoff(sheet,mine,theirs,u){ return table(sheet,u)[(mine==="hold"?"H":"C")+(theirs==="hold"?"H":"C")]; }
+function payTableHTML(sheet,u){
+  const me=table(sheet,u), rv=table(BELIEVED_RIVAL[sheet],u);
+  const cell=(m,r)=>`<td><b>You $${m}M</b><span class="r">Rival $${r}M</span></td>`;
+  return `<div class="tablewrap"><table class="pay"><thead><tr><th></th><th>Rival holds</th><th>Rival cuts</th></tr></thead><tbody>
+  <tr><th>You hold</th>${cell(me.HH,rv.HH)}${cell(me.HC,rv.CH)}</tr>
+  <tr><th>You cut</th>${cell(me.CH,rv.HC)}${cell(me.CC,rv.CC)}</tr></tbody></table></div>`;
+}
+const SCENARIO = `You run one of two firms that dominate a regional market. Next quarter, each firm decides independently and simultaneously whether to <strong>hold</strong> price or <strong>cut</strong> price. You will not know who your rival is, and you play once. The rival payoffs shown are your firm's best estimate from market intelligence. Profits are in $ millions for the quarter.`;
+
+/* ---------- subscriptions ---------- */
+function sub(name,key,make){
+  if(subs[name] && subs[name].key===key) return;
+  if(subs[name]) subs[name].off();
+  if(key==null){ delete subs[name]; return; }
+  subs[name]={key,off:make()};
+}
+const onErr = e => { if(e && e.code!=="revoked") toast("Connection problem: "+e.code); };
+
+async function boot(){
+  if(!window.claude?.use){ $("statusPill").textContent="Unavailable"; return; }
+  const [db,user]=await Promise.all([claude.use("db"),claude.use("user")]);
+  if(!db||!user){ $("statusPill").textContent="Unavailable"; $("main").innerHTML=`<p style="margin:0">The game couldn't connect. Check your internet connection and reload the page.</p>`; return; }
+  S.db=db; S.user=user; S.uid=await user.id(); S.owner=await user.isOwner();
+  if(!S.uid){ $("main").innerHTML=`<p style="margin:0">The game couldn't connect. Reload the page to try again.</p>`; return; }
+  sub("state","s",()=>db.doc("game/state").onSnapshot(s=>{ S.state=s.exists?s.data():null; wire(); render(); },onErr));
+}
+
+function wire(){
+  const db=S.db, st=S.state;
+  if(!st){ ["players","assign","res","pairs","me","chat"].forEach(n=>sub(n,null)); return; }
+  const sid=st.session;
+  if(S.viewRound==null || S.viewRound>st.round) S.viewRound=st.round;
+  sub("assign",sid,()=>db.doc("game/assign-"+sid).onSnapshot(s=>{S.assign=(s.exists&&s.data().map)||{}; wire(); render();},onErr));
+  if(S.owner){
+    sub("players",sid,()=>db.collection("players").where("session","==",sid).onSnapshot(q=>{S.players=q.docs.map(d=>({uid:d.id,...d.data()})); scheduleAssign(); render();},onErr));
+  } else sub("players",null);
+  if(ownerView()){
+    sub("me",null);
+    const vr=S.viewRound;
+    sub("res",sid+"-"+vr,()=>db.doc(`game/res-${sid}-${vr}`).onSnapshot(s=>{S.res=s.exists?s.data():null; render();},onErr));
+  } else {
+    sub("me",S.uid,()=>db.doc("players/"+S.uid).onSnapshot(s=>{S.me=s.exists?s.data():null; render();},onErr));
+    sub("res",sid+"-"+st.round,()=>db.doc(`game/res-${sid}-${st.round}`).onSnapshot(s=>{S.res=s.exists?s.data():null; render();},onErr));
+  }
+  if(st.roundType==="fggf"){
+    sub("pairs",sid+"-"+st.round,()=>db.doc(`game/pairs-${sid}-${st.round}`).onSnapshot(s=>{S.pairs=s.exists?s.data().map:null; wire(); render();},onErr));
+  } else { sub("pairs",null); S.pairs=null; }
+  if(S.owner && st.roundType==="fggf" && st.bond && st.phase==="open" && S.pairs) escrowBotsStart(S.pairs, st.round);
+  else if(Object.keys(escrowBot.chats).length && st.phase!=="open") escrowBotsStop();
+  const myPair = !ownerView() && S.pairs && S.pairs[S.uid];
+  if(myPair){
+    sub("chat",myPair.chat,()=>db.collection(`chats/${myPair.chat}/msgs`).orderBy("at").limit(300).onSnapshot(q=>{S.msgs=q.docs.map(d=>d.data()); renderChat();},onErr));
+  } else { sub("chat",null); S.msgs=[]; }
+}
+
+function render(){
+  const st=S.state;
+  const pill=$("statusPill");
+  if(!st){ pill.className="pill"; pill.textContent="No session"; }
+  else {
+    const p={lobby:["pill","Round "+st.round+" · getting ready"],open:["pill live","Round "+st.round+" · open"],closed:["pill closed","Round "+st.round+" · closed"],revealed:["pill","Round "+st.round+" · results"]}[st.phase]||["pill",st.phase];
+    pill.className=p[0]; pill.textContent=p[1];
+  }
+  const bar=$("previewBar");
+  if(S.owner && !ownerView()){ bar.hidden=false; bar.innerHTML=`<span>Student preview. You're seeing what a student sees.</span><button data-hash="">Back to instructor console</button>`; }
+  else bar.hidden=true;
+  ownerView() ? renderOwner() : renderStudent();
+}
+function ownerView(){ return S.owner && location.hash!=="#student"; }
+window.addEventListener("hashchange",()=>{ S.studentKey=""; S.viewRound=null; if(S.db){ wire(); render(); } });
+document.addEventListener("click",e=>{ const b=e.target.closest("[data-hash]"); if(!b) return; const h=b.dataset.hash; if(h) location.hash=h; else history.replaceState(null,"",location.pathname+location.search); window.dispatchEvent(new HashChangeEvent("hashchange")); });
+
+/* =================== STUDENT =================== */
+function myStatus(){
+  const st=S.state, me=S.me;
+  const joined = !!(me && me.session===st.session);
+  const pr = st.roundType==="fggf" && S.pairs && S.pairs[S.uid];
+  const sheet = (pr&&pr.role) || S.assign[S.uid] || null;
+  const switched = !!(pr && pr.role && pr.role!==S.assign[S.uid]);
+  const sub_ = joined && me.subs && me.subs[st.round] || null;
+  const submitted = !!(sub_ && sub_.choice);
+  const participant = st.roundType!=="fggf" || !!(S.pairs && S.pairs[S.uid]);
+  const result = S.res && S.res.round===st.round && S.res.per && S.res.per[S.uid];
+  return {joined,sheet,switched,sub:sub_,submitted,participant,result};
+}
+function renderStudent(){
+  const main=$("main"); const st=S.state;
+  $("app").classList.add("narrow");
+  main.className="card";
+  if(!st){ setStudent("none",`<p style="margin:0">Waiting for your instructor to start the exercise. Keep this page open.</p>`); return; }
+  const m=myStatus();
+  if(!m.joined){ setStudent("join-"+st.session,`<div class="stack"><h2>Join the exercise</h2><p style="margin:0">You'll be matched with an anonymous classmate. Nobody will see your name next to your choice.</p><div><button class="primary" id="joinBtn">Join</button></div></div>`,()=>$("joinBtn").onclick=join); return; }
+  if(!m.sheet){ setStudent("wait-sheet",`<div class="stack"><h2>You're in</h2><p class="muted" style="margin:0">Waiting for your instructor to launch the game. Keep this page open.</p></div>`); return; }
+
+  const head=`<div class="row" style="justify-content:space-between"><div><div class="label">Your firm${st.roundType==="fggf"?" this round":""}</div><div class="sheetcode">${esc(m.sheet)}</div></div><div class="muted mono" style="font-size:13px">Round ${st.round}</div></div>${m.switched?`<p class="note" style="margin:0">This round, everyone runs an FG or a GF firm, so your payoffs differ from earlier rounds. Check your table.</p>`:""}`;
+  const sheetBody=`<p style="margin:0">${SCENARIO}</p>${payTableHTML(m.sheet,st.u)}`;
+
+  if(st.phase==="revealed"){
+    let body;
+    if(m.result){
+      const r=m.result;
+      const tag=c=>`<span class="tag ${c}">${c==="hold"?"HOLD":"CUT"}</span>`;
+      body=`<h2>Results</h2><div class="outcome"><div class="card"><div class="label">You</div>${tag(r.choice)}<div class="big mono" style="margin-top:6px">$${r.pay}M</div></div><div class="card"><div class="label">Your rival</div>${tag(r.pChoice)}${r.pPay!=null?`<div class="big mono muted" style="margin-top:6px">$${r.pPay}M</div>`:""}</div></div>${r.bondLost?`<p class="note" style="margin:0">You cut with money in escrow, so your $${r.bondAmt}M was paid to your rival.</p>`:""}${r.escrowIn?`<p class="note" style="margin:0">Your rival cut, so their $${r.escrowIn}M escrow was paid to you.</p>`:""}${m.sub&&m.sub.reflection?`<div class="stack" style="gap:6px"><span class="label">Your reflection</span><p style="margin:0">${esc(m.sub.reflection)}</p><p class="muted" style="margin:0;font-size:13px">Sent to your instructor.</p></div>`:`<label class="stack" style="gap:6px"><span class="label">Was this different from your expectation? If so, why?</span><textarea id="reflect" maxlength="600"></textarea></label><div><button class="primary" id="reflectBtn">Send to instructor</button></div>`}`;
+    } else if(!m.participant){ body=`<p style="margin:0">You sat out this round. Watch the screen for the results.</p>`; }
+    else if(!m.submitted){ body=`<p style="margin:0">You didn't submit a choice this round.</p>`; }
+    else body=`<p style="margin:0">Your rival didn't submit in time, so this round has no result for you.</p>`;
+    setStudent(`rev-${st.round}-${!!m.result}-${!!(m.sub&&m.sub.reflection)}`,`<div class="stack">${head}${body}</div>`,()=>{ const b=$("reflectBtn"); if(b) b.onclick=sendReflection; }); return;
+  }
+  if(st.phase==="lobby"&&st.roundType==="fggf"){ setStudent(`lobby-fg-${st.round}`,`<div class="stack"><div class="muted mono" style="font-size:13px">Round ${st.round}</div><h2 style="margin:0">Get ready</h2><p style="margin:0">In this round, each firm is either FG or GF, and you'll be paired with a rival you can message. You'll see your firm and payoffs when your instructor launches the game.</p></div>`); return; }
+  if(!m.participant){ setStudent(`out-${st.round}-${st.phase}`,`<div class="stack">${head}<p style="margin:0">You don't have a partner this round, either because there's an odd number of players or because you joined after it launched. Watch the screen; you'll play in the next round.</p></div>`); return; }
+  if(st.phase==="lobby"){ setStudent(`lobby-${st.round}`,`<div class="stack">${head}${sheetBody}<p class="muted" style="margin:0">Study your payoffs. You can make your choice once your instructor launches the game.</p></div>`); return; }
+  if(m.submitted){ setStudent(`done-${st.round}`,`<div class="stack">${head}${sheetBody}<p class="note" style="margin:0">Submitted: you chose to <strong>${m.sub.choice}</strong>. Results appear when your instructor reveals them.</p>${chatBlock(m,true)}</div>`,()=>renderChat()); return; }
+  if(st.phase==="closed"){ setStudent(`closed-${st.round}`,`<div class="stack">${head}<p style="margin:0">Choices are closed for this round.</p></div>`); return; }
+
+  // open, not submitted
+  const form=`<fieldset class="stack" id="form">
+    <label class="stack" style="gap:6px"><span class="label">1 · Probability your rival cuts (0–100%)</span><input id="belief" type="number" inputmode="numeric" min="0" max="100" step="1" style="max-width:140px"></label>
+    <label class="stack" style="gap:6px"><span class="label">2 · In one sentence, why do you expect that?</span><textarea id="reason" maxlength="400"></textarea></label>
+    <div class="stack" style="gap:6px"><span class="label">3 · Your choice</span><div class="choice"><button type="button" class="hold" id="chHold" aria-pressed="false">HOLD</button><button type="button" class="cut" id="chCut" aria-pressed="false">CUT</button></div></div>
+    <div><button class="primary" id="submitBtn">Submit choice</button></div></fieldset>`;
+  setStudent(`open-${st.round}`,`<div class="stack">${head}${sheetBody}${chatBlock(m,false)}${form}</div>`,()=>{
+    S.draft={choice:null};
+    const setC=c=>{S.draft.choice=c;$("chHold").setAttribute("aria-pressed",c==="hold");$("chCut").setAttribute("aria-pressed",c==="cut");};
+    $("chHold").onclick=()=>setC("hold"); $("chCut").onclick=()=>setC("cut");
+    $("submitBtn").onclick=submitChoice;
+    renderChat();
+  });
+}
+function setStudent(key,html,after){
+  if(S.studentKey===key){ return; }
+  S.studentKey=key; $("main").innerHTML=html; if(after) after();
+}
+function chatBlock(m,locked){
+  const st=S.state;
+  if(st.roundType!=="fggf") return "";
+  return `<div class="card stack" style="padding:14px"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Talk with your rival</h3><span class="muted" style="font-size:13px">${st.bond?"Messages aren't binding. Escrow is.":"Nothing said here is binding"}</span></div>
+  <div class="chat" id="chatList" aria-live="polite"></div>
+  ${locked?"":`<div class="row" style="flex-wrap:nowrap"><input id="chatIn" maxlength="300" placeholder="Message your rival" style="flex:1;min-width:0"><button id="chatSend">Send</button></div>`}
+  ${st.bond?`<div id="escrowArea" class="stack" style="gap:8px" data-locked="${locked?1:0}"></div>`:""}</div>`;
+}
+function escrowState(msgs){
+  let e={demand:null,status:"none",amount:0};
+  for(const x of msgs||[]){
+    if(e.status==="accepted") break;
+    if(x.type==="demand"){ e={demand:x.amount,status:"pending",amount:x.amount}; }
+    else if(x.type==="accept"&&e.status==="pending"&&x.amount===e.demand){ e.status="accepted"; }
+    else if(x.type==="decline"&&e.status==="pending"){ e.status="declined"; }
+  }
+  return e;
+}
+function msgHTML(x,role){
+  const who=x.role===role?"You":"Your rival";
+  if(x.type==="demand") return `<div class="msg sys">${x.role===role?"You asked":"Your rival asks"} GF to put $${x.amount}M in escrow</div>`;
+  if(x.type==="accept") return `<div class="msg sys">${who} put $${x.amount}M in escrow</div>`;
+  if(x.type==="decline") return `<div class="msg sys">${who} declined the $${x.amount}M escrow</div>`;
+  if(x.type==="bond") return "";
+  return `<div class="msg ${x.role===role?"me":""}">${esc(x.text)}</div>`;
+}
+function renderChat(){
+  const list=$("chatList"); if(!list) return;
+  const role=myRole();
+  const html=S.msgs.map(x=>msgHTML(x,role)).join("");
+  list.innerHTML = html || `<div class="muted" style="font-size:14px">No messages yet.</div>`;
+  list.scrollTop=list.scrollHeight;
+  const send=$("chatSend"); if(send && !send.dataset.w){ send.dataset.w=1; send.onclick=sendMsg; $("chatIn").onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();sendMsg();}}; }
+  renderEscrow();
+}
+function renderEscrow(){
+  const area=$("escrowArea"); if(!area) return;
+  const locked=area.dataset.locked==="1", role=myRole(), e=escrowState(S.msgs);
+  let h="";
+  if(e.status==="accepted"){
+    h=`<div class="note">${role==="GF"?`You put $${e.amount}M in escrow. If you cut, it's paid to your rival.`:`Your rival put $${e.amount}M in escrow. If they cut, it's paid to you.`}</div>`;
+  } else if(role==="FG"){
+    const pick=S.escrowPick||"";
+    const status = e.status==="pending"?`Waiting for your rival to answer your $${e.amount}M demand. You can change it.`:e.status==="declined"?`Your rival declined $${e.amount}M. You can make another demand.`:`Ask your rival to put money in escrow. If they cut, it's paid to you.`;
+    h=`<div class="muted" style="font-size:14px">${status}</div>${locked?"":`<div class="row"><select id="escrowAmt" aria-label="Escrow amount"><option value="">Amount</option>${Array.from({length:11},(_,i)=>i+1).map(n=>`<option value="${n}" ${String(n)===String(pick)?"selected":""}>$${n}M</option>`).join("")}</select><button id="demandBtn">Demand escrow</button></div>`}`;
+  } else {
+    if(e.status==="pending") h=`<div><strong>Your rival asks you to put $${e.amount}M in escrow.</strong> If you cut, it's paid to your rival; if you hold, you keep it. Decide before you submit your choice.</div>${locked?"":`<div class="row"><button class="primary" id="acceptBtn">Put $${e.amount}M in escrow</button><button id="declineBtn">Decline</button></div>`}`;
+    else if(e.status==="declined") h=`<div class="muted" style="font-size:14px">You declined $${e.amount}M. Your rival may make another demand.</div>`;
+    else h=`<div class="muted" style="font-size:14px">Your rival can ask you to put money in escrow, which would be paid to them if you cut.</div>`;
+  }
+  area.innerHTML=h;
+  const sel=$("escrowAmt"); if(sel) sel.onchange=()=>{S.escrowPick=sel.value;};
+  const d=$("demandBtn"); if(d) d.onclick=()=>{ const v=Number($("escrowAmt").value); if(!v){ toast("Choose an amount."); return; } escrowMsg("demand",v); };
+  const a=$("acceptBtn"); if(a) a.onclick=()=>acceptEscrow(e.amount);
+  const n=$("declineBtn"); if(n) n.onclick=()=>escrowMsg("decline",e.amount);
+}
+async function escrowMsg(type,amount){
+  const p=S.pairs[S.uid];
+  try{ await S.db.collection(`chats/${p.chat}/msgs`).add({role:myRole(),type,amount,at:Date.now()}); }catch(e){ toast("That didn't go through. Try again."); }
+}
+async function acceptEscrow(amount){
+  const r=S.state.round;
+  try{
+    await S.db.doc("players/"+S.uid).update({subs:{[r]:{bond:true,bondAmt:amount}}});
+    await escrowMsg("accept",amount);
+  }catch(e){ toast("Couldn't put the money in escrow. Try again."); }
+}
+async function join(){
+  try{ await S.db.doc("players/"+S.uid).set({session:S.state.session,joinedAt:Date.now(),subs:{}}); }
+  catch(e){ toast(e.code==="invalid_argument"?"Couldn't join. Reload the page and try again.":"Couldn't join. Try again."); }
+}
+function myRole(){ const p=S.pairs&&S.pairs[S.uid]; return (p&&p.role)||S.assign[S.uid]; }
+async function sendMsg(){
+  const inp=$("chatIn"); const text=inp.value.trim(); if(!text) return;
+  const p=S.pairs[S.uid]; inp.value="";
+  try{ await S.db.collection(`chats/${p.chat}/msgs`).add({role:myRole(),text,at:Date.now(),type:"text"}); }catch(e){ toast("Message not sent."); inp.value=text; }
+}
+async function sendReflection(){
+  const t=$("reflect").value.trim();
+  if(!t){ toast("Write a sentence or two first."); return; }
+  const btn=$("reflectBtn"); btn.disabled=true;
+  try{ await S.db.doc("players/"+S.uid).update({subs:{[S.state.round]:{reflection:t}}}); }
+  catch(e){ btn.disabled=false; toast("Couldn't send. Try again."); }
+}
+async function submitChoice(){
+  const b=$("belief").value.trim(), reason=$("reason").value.trim(), c=S.draft.choice;
+  const belief=Number(b);
+  if(b===""||!Number.isFinite(belief)||belief<0||belief>100){ toast("Enter a probability from 0 to 100."); return; }
+  if(!reason){ toast("Add one sentence on why."); return; }
+  if(!c){ toast("Choose HOLD or CUT."); return; }
+  const btn=$("submitBtn"); btn.disabled=true;
+  try{ await S.db.doc("players/"+S.uid).update({subs:{[S.state.round]:{belief:Math.round(belief),reason,choice:c,at:Date.now()}}}); }
+  catch(e){ btn.disabled=false; toast("Couldn't submit. Try again."); }
+}
+
+/* =================== INSTRUCTOR =================== */
+function entriesForRound(r){
+  // live entries from players (pre-reveal), or from results doc
+  const roleOf=uid=>{ const pr=S.state.roundType==="fggf"&&S.state.round===r&&S.pairs&&S.pairs[uid]; return (pr&&pr.role)||S.assign[uid]; };
+  return S.players.filter(p=>p.subs&&p.subs[r]&&p.subs[r].choice&&S.assign[p.uid]).map(p=>({uid:p.uid,sheet:roleOf(p.uid),...p.subs[r]}));
+}
+function stats(entries){
+  const by={}; for(const s of ["G","FG","GF","NG"]) by[s]={n:0,cut:0,bel:0};
+  for(const e of entries){ const b=by[e.sheet]; if(!b) continue; b.n++; if(e.choice==="cut") b.cut++; b.bel+=e.belief||0; }
+  return by;
+}
+const pct=(a,n)=>n?Math.round(100*a/n):null;
+function renderOwner(){
+  $("app").classList.remove("narrow");
+  const st=S.state, main=$("main");
+  main.className="";
+  if(!st){
+    main.innerHTML=`<div class="card stack" style="max-width:620px"><h2>Start a session</h2><p style="margin:0">Students open this page and join. Each is given a firm (G, FG, GF or NG) automatically as they arrive. You launch each round from here and project the results.</p><div><button class="primary" id="startBtn">Start a session</button></div></div>`;
+    $("startBtn").onclick=startSession; return;
+    // (QR button appears once a session exists)
+  }
+  if(!S.resumed){
+    const n=S.players.length, when=st.createdAt?new Date(st.createdAt).toLocaleString([], {weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):null;
+    main.innerHTML=`<div class="card stack" style="max-width:620px"><h2>Start a new game</h2><p style="margin:0">Starts with an empty class. Students join from the link or QR code and are given firms automatically.</p><div><button class="primary" id="freshBtn">Start a new game</button></div><hr style="border:0;border-top:1px solid var(--line);margin:4px 0"><p class="muted" style="margin:0;font-size:14px">Or pick up where you left off: round ${st.round}, ${n} player${n===1?"":"s"}${when?`, started ${esc(when)}`:""}. Use this if the page reloaded during class.</p><div><button id="resumeBtn">Resume previous game</button></div></div>`;
+    $("freshBtn").onclick=()=>guard(async()=>{ await startSession(); S.resumed=true; render(); });
+    $("resumeBtn").onclick=()=>{ S.resumed=true; render(); };
+    return;
+  }
+  const sid=st.session, r=st.round;
+  const joined=S.players.length;
+  const assignedIds=S.players.filter(p=>S.assign[p.uid]);
+  const unassigned=joined-assignedIds.length;
+  const bots=S.players.filter(p=>p.bot).length;
+  const counts={G:0,FG:0,GF:0,NG:0};
+  const fgRound=st.roundType==="fggf"&&st.phase!=="lobby"&&S.pairs;
+  assignedIds.forEach(p=>{ const pr=fgRound&&S.pairs[p.uid]; const k=pr?pr.role:(fgRound?null:S.assign[p.uid]); if(k) counts[k]++; });
+  const fgPending=st.roundType==="fggf"&&(st.phase==="lobby");
+  const half=Math.floor(assignedIds.length/2);
+  const subNow=entriesForRound(r);
+  const participants = st.roundType==="fggf" ? (S.pairs?Object.keys(S.pairs).length:0) : assignedIds.length;
+  const L=st.phase==="lobby"||st.phase==="revealed";
+  const nextR=st.phase==="revealed"?r+1:r;
+
+  const seg=(field,opts,val)=>`<div class="seg" role="group">${opts.map(([v,t])=>`<button data-set="${field}" data-val="${v}" aria-pressed="${String(val)===String(v)}" ${L?"":"disabled"}>${t}</button>`).join("")}</div>`;
+
+  const steps = {
+    lobby:`<button class="primary" id="openBtn">Launch round ${r}</button>${st.roundType==="fggf"?"":`<span class="muted" style="font-size:13px">Students can join after launch</span>`}`,
+    open:`<button class="primary" id="closeBtn">Close choices</button>`,
+    closed:`<button class="primary" id="revealBtn">Match and reveal</button> <button id="reopenBtn">Reopen</button>`,
+    revealed:`<button class="primary" id="openBtn">Launch round ${r+1}</button>`
+  }[st.phase];
+
+  const controls=`<div class="card stack">
+    <div class="row" style="justify-content:space-between"><h2 style="margin:0">Round ${r}</h2><span class="mono muted" style="font-size:12px">Session ${esc(sid)}</span></div>
+    <div class="stack" style="gap:10px">
+      <div><div class="label">Round type</div>${seg("roundType",[["oneshot","Anonymous one-shot"],["fggf","FG–GF talk"]],st.roundType)}</div>
+      ${st.roundType==="fggf"?`<div><div class="label">Escrow demands</div>${seg("bond",[["false","Off"],["true","On"]],st.bond)}<div class="muted" style="font-size:13px;margin-top:4px">${st.bond?"Each FG can demand that its GF rival put $1M–$11M in escrow. If GF cuts, the escrow is paid to FG.":"FG and GF can only talk."}</div></div>`:`<div><div class="label">Matching</div>${seg("matching",[["design","By design"],["cross","Cross pairings"]],st.matching)}<div class="muted" style="font-size:13px;margin-top:4px">${st.matching==="cross"?"NG players are matched with G, FG or GF rivals; everyone else by design.":"G with G, FG with GF, NG with NG."}</div></div>`}
+      <div><div class="label">Untempted firm's payoff for cutting while rival holds</div>${seg("u",[["7","$7M"],["4","$4M"]],st.u)}</div>
+      ${L?`<div class="muted" style="font-size:13px">Settings for round ${nextR}. They lock when you launch it.</div>`:`<div class="note" style="font-size:13px">Locked during round ${r}, so students' payoff tables don't change mid-round. You can change these once you've revealed this round's results.</div>`}
+    </div>
+  </div>`;
+  const actions=`<div class="card row">${steps}</div>`;
+
+  const roster=`<div class="card stack">
+    <h2 style="margin:0">Class</h2>
+    <div class="row" style="gap:18px"><div><div class="label">Joined</div><div class="big mono">${joined}</div></div><div><div class="label">Submitted</div><div class="big mono">${subNow.length}<span class="muted" style="font-size:20px">/${participants}</span></div></div></div>
+    ${fgPending?`<div class="row mono" style="gap:14px;font-size:14px"><span><strong>FG</strong> ${half}</span><span><strong>GF</strong> ${half}</span>${assignedIds.length%2?`<span class="muted">1 sits out</span>`:""}</div><div class="muted" style="font-size:13px">At launch, everyone runs an FG or a GF firm for this round.</div>`:`<div class="row mono" style="gap:14px;font-size:14px">${Object.entries(fgRound?{FG:counts.FG,GF:counts.GF}:counts).map(([k,v])=>`<span><strong>${k}</strong> ${v}</span>`).join("")}</div>`}
+    <div class="muted" style="font-size:13px">${joined?(unassigned?`Assigning firms to ${unassigned} new arrival(s)…`:"Firms are assigned in matched pairs as students join (G–G, FG–GF, NG–NG), so every second arrival completes a pair."):"Share this page's link or QR code. Students appear here when they join."}</div>
+    ${st.roundType==="fggf"&&L?`<div class="muted" style="font-size:13px">When you launch this round, everyone runs an FG or a GF firm for this round only. FG and GF players keep their firms; G and NG players are split between FG and GF. Each FG is paired with a GF to chat. With an odd number of players, one sits out.</div>`:""}
+    <div class="stack" style="gap:6px"><div class="label">Test players</div><div class="row"><select id="botN" aria-label="Number of test players">${Array.from({length:40},(_,i)=>i+1).map(n=>`<option value="${n}" ${n===S.botN?"selected":""}>${n}</option>`).join("")}</select><select id="botMode" aria-label="How test players choose"><option value="textbook" ${S.botMode==="textbook"?"selected":""}>Textbook play</option><option value="classroom" ${S.botMode==="classroom"?"selected":""}>Classroom-like</option></select><button id="botBtn" ${st.phase==="closed"?"disabled":""}>Add test players</button></div><div class="muted" style="font-size:13px">${S.botMode==="textbook"?"Textbook: G, GF and FG cut; NG holds; GF posts any bond and holds; FG holds once its rival has posted a $6M bond.":"Classroom-like: random choices, cutting 70% of the time for G, 75% for GF, 55% for FG and 25% for NG."}</div><div class="muted" style="font-size:13px">${bots?`${bots} in this session. `:""}${st.phase==="open"?(st.roundType==="fggf"?"FG–GF pairs are already set for this round, so new test players sit it out until the next round.":"Test players added now choose right away."):(st.phase==="closed"?"Choices are closed. Add test players after you reveal results.":"Test players added now choose when you launch the next round.")}</div></div>
+    <div class="row"><button id="qrBtn">Show QR code for students</button><button data-hash="student">Preview as a student</button></div>
+  </div>`;
+
+  main.innerHTML=`<div class="grid2"><div class="stack">${controls}${roster}${actions}${sheetRef(st.u)}</div><div class="stack">${resultsPanel()}</div></div>`;
+
+  main.querySelectorAll("[data-set]").forEach(b=>b.onclick=()=>setSetting(b.dataset.set,b.dataset.val));
+  const on=(id,f)=>{const el=$(id); if(el) el.onclick=()=>guard(f);};
+  on("openBtn",openRound); on("closeBtn",closeRound); on("reopenBtn",()=>setPhase("open"));
+  const qb=$("qrBtn"); if(qb) qb.onclick=showQR;
+  on("revealBtn",matchReveal); on("botBtn",addBots);
+  const bn=$("botN"); if(bn) bn.onchange=()=>{S.botN=Number(bn.value);};
+  const bm=$("botMode"); if(bm) bm.onchange=()=>{S.botMode=bm.value; render();}; on("resetBtn",startSession);
+  main.querySelectorAll("[data-vr]").forEach(b=>b.onclick=()=>{S.viewRound=Number(b.dataset.vr); wire(); render();});
+  main.querySelectorAll("[data-rf]").forEach(b=>b.onclick=()=>{S.reasonFilter=b.dataset.rf; render();});
+}
+function sheetRef(u){
+  return `<details class="card"><summary>Payoff tables as students see them</summary><div class="stack" style="margin-top:12px">${["G","FG","GF","NG"].map(s=>`<div><h3>Firm ${s}</h3>${payTableHTML(s,u)}</div>`).join("")}</div></details>`;
+}
+function resultsPanel(){
+  const st=S.state, vr=S.viewRound;
+  const revealed = S.res && S.res.round===vr;
+  const entries = revealed ? Object.entries(S.res.per).map(([uid,e])=>({uid,...e})) : entriesForRound(vr);
+  const by=stats(entries);
+  const tabs = st.round>1 ? `<div class="seg">${Array.from({length:st.round},(_,i)=>i+1).map(i=>`<button data-vr="${i}" aria-pressed="${i===vr}">Round ${i}</button>`).join("")}</div>` : "";
+  const fg=pct(by.FG.cut,by.FG.n), ng=pct(by.NG.cut,by.NG.n), g=pct(by.G.cut,by.G.n), gf=pct(by.GF.cut,by.GF.n);
+  const fmt=v=>v==null?"–":v+"%";
+  const gap = fg!=null&&ng!=null ? (fg-ng>0?"+":"")+(fg-ng)+" pts" : "–";
+  const head = `<div class="stats">
+    <div class="card"><div class="label">FG cut rate</div><div class="big mono">${fmt(fg)}</div><div class="muted" style="font-size:13px">Untempted, facing a tempted rival</div></div>
+    <div class="card"><div class="label">NG cut rate</div><div class="big mono">${fmt(ng)}</div><div class="muted" style="font-size:13px">Same payoffs, untempted rival</div></div>
+    <div class="card"><div class="label">Fear of greed</div><div class="big mono">${gap}</div><div class="muted" style="font-size:13px">FG minus NG</div></div></div>`;
+  const vrFg = revealed ? S.res.type==="fggf" : (vr===st.round && st.roundType==="fggf" && st.phase!=="lobby");
+  const rows=(vrFg?["FG","GF"]:["G","FG","GF","NG"]).map(s=>{const b=by[s]; const p=pct(b.cut,b.n); return `<tr><th>${s}</th><td class="mono">${b.n}</td><td><div class="row" style="flex-wrap:nowrap;gap:8px"><div class="bar" style="flex:1"><span style="width:${p||0}%"></span></div><span class="mono" style="min-width:3.2em">${fmt(p)}</span></div></td><td class="mono">${b.n?Math.round(b.bel/b.n)+"%":"–"}</td></tr>`;}).join("");
+  const bySheet=`<div class="tablewrap"><table><thead><tr><th>Firm</th><th>n</th><th>Cut</th><th>Mean belief rival cuts</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+
+  let pairT="";
+  if(revealed){
+    const pt={};
+    for(const e of entries){ if(!e.pairType) continue; const k=e.pairType; pt[k]=pt[k]||{n:0,held:0,pay:0}; pt[k].n++; if(e.choice==="hold") pt[k].held++; pt[k].pay+=e.pay; }
+    const order=Object.keys(pt).sort();
+    const bonds = entries.filter(e=>e.sheet==="GF"&&e.bond).length, gfs=entries.filter(e=>e.sheet==="GF").length;
+    pairT=`<div class="card stack"><h2 style="margin:0">Payoffs by pairing</h2><p class="muted" style="margin:0;font-size:13px">Each row is from the first-named player's side.</p><div class="tablewrap"><table><thead><tr><th>Pairing</th><th>Players</th><th>Held</th><th>Mean payoff</th></tr></thead><tbody>${order.map(k=>`<tr><th>${esc(k)}</th><td class="mono">${pt[k].n}</td><td class="mono">${fmt(pct(pt[k].held,pt[k].n))}</td><td class="mono">$${(pt[k].pay/pt[k].n).toFixed(1)}M</td></tr>`).join("")||`<tr><td colspan="4" class="muted">No matched pairs.</td></tr>`}</tbody></table></div>${S.res.type==="fggf"&&S.res.bond?escrowSummary(entries):""}${S.res.reused?`<div class="muted" style="font-size:13px">${S.res.reused} player(s) were matched with a re-used rival because counts were uneven; the rival's own payoff came from their real pairing.</div>`:""}</div>`;
+  }
+
+  const rf=S.reasonFilter;
+  const filt=entries.filter(e=>rf==="all"||e.sheet===rf);
+  const reasons=`<div class="card stack"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Reasons</h2><div class="seg">${["all","G","FG","GF","NG"].map(s=>`<button data-rf="${s}" aria-pressed="${rf===s}">${s==="all"?"All":s}</button>`).join("")}</div></div>
+    <div class="reasons">${filt.length?filt.map(e=>`<div><span class="tag ${e.choice}">${e.choice==="hold"?"HOLD":"CUT"}</span> <span class="mono muted" style="font-size:12px">${e.sheet} · ${e.belief}%</span><br>${esc(e.reason)}</div>`).join(""):`<div class="muted">Reasons appear here as students submit.</div>`}</div></div>`;
+
+  let reflections="";
+  if(revealed){
+    const refl=S.players.map(p=>{ const s=p.subs&&p.subs[vr]; const e=S.res.per[p.uid]; return (s&&s.reflection&&e)?{...e,reflection:s.reflection}:null; }).filter(Boolean).filter(e=>rf==="all"||e.sheet===rf);
+    reflections=`<div class="card stack"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Reflections</h2><span class="muted" style="font-size:13px">Was this different from your expectation? If so, why?</span></div>
+    <div class="reasons">${refl.length?refl.map(e=>`<div><span class="mono muted" style="font-size:12px">${e.pairType} · you ${e.choice} / rival ${e.pChoice} · $${e.pay}M</span><br>${esc(e.reflection)}</div>`).join(""):`<div class="muted">Reflections appear here as students send them.${rf==="all"?"":" Showing "+rf+" only."}</div>`}</div></div>`;
+  }
+  return `<div class="card stack"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Results${revealed?"":" so far"}</h2>${tabs}</div>${head}${bySheet}${revealed?"":`<p class="muted" style="margin:0;font-size:13px">Live counts from submissions. Payoffs appear after you match and reveal.</p>`}</div>${pairT}${reasons}${reflections}`;
+}
+
+const PAGE_URL=location.origin+location.pathname;
+let qrMade=false;
+function showQR(){
+  const ov=$("qrOverlay");
+  if(!qrMade){
+    $("qrUrl").textContent=PAGE_URL.replace("https://","");
+    if(window.QRCode){ new QRCode($("qrCode"),{text:PAGE_URL,width:600,height:600,colorDark:"#000000",colorLight:"#ffffff",correctLevel:QRCode.CorrectLevel.M}); qrMade=true; }
+    else $("qrCode").textContent="The QR code couldn't load. Share the link above instead.";
+  }
+  ov.hidden=false; $("qrClose").focus();
+}
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") $("qrOverlay").hidden=true; });
+$("qrClose").onclick=()=>$("qrOverlay").hidden=true;
+
+/* ---- Escrow rounds: test players demand, answer and choose as the chat unfolds ---- */
+const escrowBot={chats:{}};
+function botById(uid){ return S.players.find(p=>p.uid===uid); }
+function botAccepts(bot,amt){ return bot.mode==="textbook" ? amt>=5 : Math.random()<(amt>=5?.75:.35); }
+function botEscrowChoice(bot,role,amt){
+  if(bot.mode==="textbook") return amt>=5?"hold":"cut";
+  const pHold = role==="GF" ? (amt>=5?.85:amt>3?.4:.25) : (amt>=5?.8:.35);
+  return Math.random()<pHold?"hold":"cut";
+}
+function botEscrowReason(role,choice,amt){
+  const R={
+    GF:{hold:amt?[`With $${amt}M in escrow, cutting no longer pays.`,5,20]:["I'm giving up the extra $3M to keep us both at $8M.",10,30],
+        cut:amt?["I'll risk the escrow; I expect my rival to cut anyway.",55,85]:["Cutting pays more whatever my rival does.",40,80]},
+    FG:{hold:amt?[`My rival's $${amt}M escrow takes away their reason to cut.`,5,25]:["I'm betting my rival won't take the bait.",5,30],
+        cut:amt?["Even with escrow, I don't trust my rival to hold.",50,80]:["My rival gains from cutting and wouldn't commit, so I can't risk holding.",60,90]}
+  };
+  const [t,lo,hi]=R[role][choice]; return {reason:"Test player: "+t,belief:lo+rnd(hi-lo+1)};
+}
+function botHasChosen(uid,r,c){ if(c&&c.chosen.has(uid)) return true; const p=botById(uid); return !!(p&&p.subs&&p.subs[r]&&p.subs[r].choice); }
+async function botChoose(bot,role,amt,r,c){
+  if(botHasChosen(bot.uid,r,c)) return; if(c) c.chosen.add(bot.uid);
+  const choice=botEscrowChoice(bot,role,amt);
+  const {reason,belief}=botEscrowReason(role,choice,amt);
+  await S.db.doc("players/"+bot.uid).update({subs:{[r]:{belief,reason,choice,at:Date.now()}}});
+}
+function botPairsInRound(P){
+  const out={};
+  for(const [uid,pr] of Object.entries(P||{})){
+    if(out[pr.chat]) continue;
+    const a=botById(uid), b=botById(pr.partner);
+    if(!(a&&a.bot)&&!(b&&b.bot)) continue;
+    out[pr.chat]={fgId:pr.role==="FG"?uid:pr.partner, gfId:pr.role==="FG"?pr.partner:uid};
+  }
+  return out;
+}
+function escrowBotsStart(P,r){
+  const st=S.state; if(!S.owner||!P||st.roundType!=="fggf"||!st.bond) return;
+  for(const [chat,pr] of Object.entries(botPairsInRound(P))){
+    if(escrowBot.chats[chat]) continue;
+    const c=escrowBot.chats[chat]={r,...pr,msgs:[],busy:false,again:false,answered:new Set(),chosen:new Set(),demanded:false};
+    c.off=S.db.collection(`chats/${chat}/msgs`).orderBy("at").limit(300).onSnapshot(q=>{ c.msgs=q.docs.map(d=>d.data()); escrowTick(chat); },onErr);
+  }
+}
+function escrowBotsStop(){ for(const c of Object.values(escrowBot.chats)) c.off&&c.off(); escrowBot.chats={}; }
+async function escrowTick(chat){
+  const c=escrowBot.chats[chat]; const st=S.state;
+  if(!c||st.phase!=="open"||st.round!==c.r) return;
+  if(c.busy){ c.again=true; return; } c.busy=true;
+  try{
+    const fg=botById(c.fgId), gf=botById(c.gfId), r=c.r;
+    const demands=c.msgs.filter(x=>x.type==="demand");
+    // a test FG opens with a demand once
+    if(fg&&fg.bot&&!demands.length&&!c.demanded){ c.demanded=true; const amt=fg.mode==="textbook"?6:3+rnd(6); await S.db.collection(`chats/${chat}/msgs`).add({role:"FG",type:"demand",amount:amt,at:Date.now()}); return; }
+    const e=escrowState(c.msgs);
+    // a test GF answers each new demand
+    const last=demands[demands.length-1];
+    if(gf&&gf.bot&&e.status==="pending"&&last&&!c.answered.has(last.at)&&!botHasChosen(gf.uid,r,c)){
+      c.answered.add(last.at);
+      if(botAccepts(gf,e.amount)){
+        await S.db.doc("players/"+gf.uid).update({subs:{[r]:{bond:true,bondAmt:e.amount}}});
+        await S.db.collection(`chats/${chat}/msgs`).add({role:"GF",type:"accept",amount:e.amount,at:Date.now()});
+      } else {
+        await S.db.collection(`chats/${chat}/msgs`).add({role:"GF",type:"decline",amount:e.amount,at:Date.now()});
+      }
+      return;
+    }
+    // once escrow is settled, test players choose
+    if(e.status==="accepted"){
+      if(gf&&gf.bot) await botChoose(gf,"GF",e.amount,r,c);
+      if(fg&&fg.bot) await botChoose(fg,"FG",e.amount,r,c);
+    } else if(e.status==="declined"){
+      if(fg&&fg.bot) await botChoose(fg,"FG",0,r,c);
+      if(gf&&gf.bot&&fg&&fg.bot) await botChoose(gf,"GF",0,r,c);
+    }
+  } catch(err){ console.error(err); }
+  finally{ c.busy=false; if(c.again){ c.again=false; escrowTick(chat); } }
+}
+async function escrowBotsFinish(r){
+  for(const [chat,pr] of Object.entries(botPairsInRound(S.pairs))){
+    const msgs=(await S.db.collection(`chats/${chat}/msgs`).orderBy("at").limit(300).get()).docs.map(d=>d.data());
+    const e=escrowState(msgs), amt=e.status==="accepted"?e.amount:0;
+    const c=escrowBot.chats[chat];
+    const fg=botById(pr.fgId), gf=botById(pr.gfId);
+    if(gf&&gf.bot) await botChoose(gf,"GF",amt,r,c);
+    if(fg&&fg.bot) await botChoose(fg,"FG",amt,r,c);
+  }
+  escrowBotsStop();
+}
+async function closeRound(){
+  const st=S.state;
+  if(st.roundType==="fggf"&&st.bond) await escrowBotsFinish(st.round);
+  await setPhase("closed");
+}
+function escrowSummary(entries){
+  const gf=entries.filter(e=>e.sheet==="GF");
+  const withE=gf.filter(e=>e.bond), without=gf.filter(e=>!e.bond);
+  const both=a=>a.filter(e=>e.choice==="hold"&&e.pChoice==="hold").length;
+  const pc=(a,n)=>n?Math.round(100*a/n)+"%":"–";
+  const mean=withE.length?"$"+(withE.reduce((t,e)=>t+(e.bondAmt||0),0)/withE.length).toFixed(1)+"M":"–";
+  return `<h3 style="margin:6px 0 0">Escrow</h3><div class="tablewrap"><table><thead><tr><th>FG–GF pairs</th><th>Pairs</th><th>Both held</th><th>Mean escrow</th></tr></thead><tbody><tr><th>With escrow</th><td class="mono">${withE.length}</td><td class="mono">${pc(both(withE),withE.length)}</td><td class="mono">${mean}</td></tr><tr><th>Without</th><td class="mono">${without.length}</td><td class="mono">${pc(both(without),without.length)}</td><td class="mono">–</td></tr></tbody></table></div>`;
+}
+
+async function guard(f){ if(S.busy) return; S.busy=true; try{ await f(); }catch(e){ console.error(e); toast("That didn't work: "+(e.code||e.message)); } finally{ S.busy=false; } }
+async function startSession(){
+  for(const b of S.players.filter(p=>p.bot)){ try{ await S.db.doc("players/"+b.uid).delete(); }catch(e){} }
+  const sid=newId();
+  S.resumed=true;
+  await S.db.doc("game/state").set({createdAt:Date.now(),session:sid,round:1,phase:"lobby",roundType:"oneshot",matching:"design",bond:false,bondAmt:6,u:S.state?.u??7});
+  S.viewRound=1; toast("Session started.");
+}
+async function setSetting(k,v){
+  if(S.state.phase!=="lobby"&&S.state.phase!=="revealed") return;
+  const val = (k==="bond") ? v==="true" : (k==="u"||k==="bondAmt") ? Number(v) : v;
+  await guard(()=>S.db.doc("game/state").update({[k]:val}));
+}
+async function setPhase(p){ await S.db.doc("game/state").update({phase:p}); }
+let assignTimer=null, assigning=false, lastAssign={sid:null,map:{}};
+function scheduleAssign(){
+  if(!S.owner||!S.state) return;
+  clearTimeout(assignTimer);
+  assignTimer=setTimeout(async()=>{
+    if(assigning) return scheduleAssign();
+    const sid=S.state.session;
+    const known={...S.assign,...(lastAssign.sid===sid?lastAssign.map:{})};
+    if(!S.players.some(p=>!known[p.uid])) return;
+    assigning=true;
+    try{ await assignSheets(); if(S.state.phase==="open") await botsSubmit(null); }catch(e){ toast("Couldn't assign firms: "+(e.code||e.message)); }
+    finally{ assigning=false; }
+  },700);
+}
+const BOT_CUT={G:.7,GF:.75,FG:.55,NG:.25};
+// Test players: reason and belief (chance rival cuts) fit the firm and the choice.
+const BOT_PLAY={
+  G:{cut:["Cutting pays more whatever my rival does.",50,85],hold:["If we both hold we each make $8M, and I'm betting my rival sees that.",10,35]},
+  GF:{cut:["Cutting pays more whatever my rival does.",40,80],hold:["I'm giving up the extra $3M to keep us both at $8M.",10,30]},
+  GFbond:{cut:["I'll take the bond loss; I expect my rival to cut anyway.",60,90],hold:["My bond means cutting no longer pays, so holding is safe.",5,20]},
+  FG:{cut:["My rival gains from cutting, so I can't risk holding.",55,90],hold:["I'm betting my rival won't take the bait.",5,30]},
+  NG:{cut:["Neither of us gains from cutting, but I can't afford to be the only one holding.",25,55],hold:["Neither of us gains from cutting, so I expect us both to hold.",0,15]}
+};
+async function addBots(){
+  const sid=S.state.session, n=S.botN;
+  for(let i=0;i<n;i++){ await S.db.doc("players/bot-"+newId()).set({session:sid,bot:true,mode:S.botMode,joinedAt:Date.now(),subs:{}}); }
+  toast(`Added ${n} test player${n===1?"":"s"}.`);
+}
+async function botsSubmit(pairsMap,round){
+  const st=S.state, r=round??st.round, P=pairsMap||S.pairs;
+  if(st.roundType==="fggf"&&st.bond){ return escrowBotsStart(P,r); }
+  const roles={...S.assign,...(lastAssign.sid===st.session?lastAssign.map:{})};
+  const order={GF:0,G:1,NG:1,FG:2};
+  const roundRole=uid=>(st.roundType==="fggf"&&P&&P[uid]&&P[uid].role)||roles[uid];
+  const bots=S.players.filter(p=>p.bot && roles[p.uid] && !(p.subs&&p.subs[r]&&p.subs[r].choice)).sort((a,b)=>order[roundRole(a.uid)]-order[roundRole(b.uid)]);
+  const bonded=new Set(S.players.filter(p=>p.subs&&p.subs[r]&&p.subs[r].bond).map(p=>p.uid));
+  for(const b of bots){
+    const role=(st.roundType==="fggf"&&P&&P[b.uid]&&P[b.uid].role)||roles[b.uid];
+    let pair=null;
+    if(st.roundType==="fggf"){ pair=P&&P[b.uid]; if(!pair) continue; }
+    const bondRound=st.roundType==="fggf"&&st.bond;
+    let bond=false, choice;
+    if(b.mode==="textbook"){
+      if(role==="GF"&&bondRound){ bond=true; choice="hold"; }
+      else if(role==="FG"&&pair&&bonded.has(pair.partner)&&st.bondAmt>=6) choice="hold";
+      else choice = role==="NG" ? "hold" : "cut";
+    } else {
+      let pCut=BOT_CUT[role];
+      if(bondRound&&role==="GF"&&Math.random()<.6){ bond=true; pCut=.1; }
+      choice=Math.random()<pCut?"cut":"hold";
+    }
+    if(bond) bonded.add(b.uid);
+    const [txt,lo,hi]=BOT_PLAY[bond?"GFbond":role][choice];
+    const entry={belief:lo+rnd(hi-lo+1),reason:"Test player: "+txt,choice,at:Date.now()}; if(bond) entry.bond=true;
+    await S.db.doc("players/"+b.uid).update({subs:{[r]:entry}});
+    if(bond) await S.db.collection(`chats/${pair.chat}/msgs`).add({role:"GF",type:"bond",at:Date.now()});
+  }
+}
+async function assignSheets(){
+  const sid=S.state.session;
+  const map={...S.assign,...(lastAssign.sid===sid?lastAssign.map:{})};
+  const counts={G:0,FG:0,GF:0,NG:0}; Object.values(map).forEach(s=>counts[s]!=null&&counts[s]++);
+  // Hand out firms in matched pairs (G–G, FG–GF, NG–NG): finish an open pair first, else start the least-used pair type.
+  const pick=()=>{
+    if(counts.G%2) return "G";
+    if(counts.NG%2) return "NG";
+    if(counts.FG<counts.GF) return "FG";
+    if(counts.GF<counts.FG) return "GF";
+    const pairs={G:counts.G/2,FGGF:counts.FG,NG:counts.NG/2};
+    const min=Math.min(...Object.values(pairs));
+    const t=shuffle(Object.keys(pairs).filter(k=>pairs[k]===min))[0];
+    return t==="FGGF" ? (rnd(2)?"FG":"GF") : t;
+  };
+  const fresh=S.players.filter(p=>!map[p.uid]).sort((a,b)=>(a.joinedAt||0)-(b.joinedAt||0));
+  for(const p of fresh){ const s=pick(); map[p.uid]=s; counts[s]++; }
+  await S.db.doc("game/assign-"+sid).set({map});
+  lastAssign={sid,map};
+}
+async function openRound(){
+  const st=S.state;
+  const r=st.phase==="revealed"?st.round+1:st.round;
+  const launch=async()=>{ await S.db.doc("game/state").update({round:r,phase:"open"}); S.viewRound=r; };
+  if(st.roundType==="fggf"){
+    // Everyone plays FG or GF this round: FG and GF keep their firms; G and NG fill whichever side is short.
+    const ids=S.players.map(p=>p.uid).filter(u=>S.assign[u]);
+    const fg=shuffle(ids.filter(u=>S.assign[u]==="FG")), gf=shuffle(ids.filter(u=>S.assign[u]==="GF"));
+    for(const u of shuffle(ids.filter(u=>S.assign[u]==="G"||S.assign[u]==="NG"))){ (fg.length<=gf.length?fg:gf).push(u); }
+    const k=Math.min(fg.length,gf.length); if(!k){ toast("Need at least 2 players for this round."); return; }
+    const F=shuffle(fg), Gf=shuffle(gf);
+    const map={};
+    for(let i=0;i<k;i++){ const chat=`${st.session}-r${r}-${i}-${newId()}`; map[F[i]]={chat,partner:Gf[i],role:"FG"}; map[Gf[i]]={chat,partner:F[i],role:"GF"}; }
+    await S.db.doc(`game/pairs-${st.session}-${r}`).set({map});
+    await launch();
+    await botsSubmit(map,r);
+    return;
+  }
+  await launch();
+  await botsSubmit(null,r);
+}
+function matchOneshot(entries,mode){
+  const pools={G:[],FG:[],GF:[],NG:[]}; entries.forEach(e=>pools[e.sheet].push(e));
+  const partner={};
+  const mut=(a,b)=>{partner[a.uid]={p:b,mutual:true};partner[b.uid]={p:a,mutual:true};};
+  const reuse=(a,pool)=>{ let c=pool.filter(x=>x.uid!==a.uid); if(!c.length) c=entries.filter(x=>x.uid!==a.uid); if(c.length) partner[a.uid]={p:c[rnd(c.length)],mutual:false}; };
+  const same=(list,pool)=>{ for(let i=0;i+1<list.length;i+=2) mut(list[i],list[i+1]); if(list.length%2) reuse(list[list.length-1],pool); };
+  const design=g=>{
+    same(shuffle(g.G),pools.G); same(shuffle(g.NG),pools.NG);
+    const fg=shuffle(g.FG), gf=shuffle(g.GF), k=Math.min(fg.length,gf.length);
+    for(let i=0;i<k;i++) mut(fg[i],gf[i]);
+    fg.slice(k).forEach(a=>reuse(a,pools.GF)); gf.slice(k).forEach(a=>reuse(a,pools.FG));
+  };
+  if(mode==="cross"){
+    const others=shuffle([...pools.G,...pools.FG,...pools.GF]), ng=shuffle(pools.NG), k=Math.min(ng.length,others.length);
+    for(let i=0;i<k;i++) mut(ng[i],others[i]);
+    ng.slice(k).forEach(a=>reuse(a,others.length?others:pools.NG));
+    const rest={G:[],FG:[],GF:[],NG:[]}; others.slice(k).forEach(e=>rest[e.sheet].push(e));
+    design(rest);
+  } else design(pools);
+  return partner;
+}
+async function matchReveal(){
+  const st=S.state, r=st.round, u=st.u;
+  const entries=entriesForRound(r);
+  const per={}; let reused=0;
+  if(st.roundType==="fggf"){
+    const byId=Object.fromEntries(entries.map(e=>[e.uid,e]));
+    for(const e of entries){
+      const pr=S.pairs&&S.pairs[e.uid]; if(!pr) continue; const q=byId[pr.partner]; if(!q) continue;
+      let pay=payoff(e.sheet,e.choice,q.choice,u), bondLost=false;
+      // Escrow: if GF cuts, its escrow is paid to FG.
+      const eEsc=(e.sheet==="GF"&&e.bond&&e.choice==="cut")?(e.bondAmt??st.bondAmt):0;
+      const qEsc=(q.sheet==="GF"&&q.bond&&q.choice==="cut")?(q.bondAmt??st.bondAmt):0;
+      if(eEsc){ pay-=eEsc; bondLost=true; }
+      const escrowIn=qEsc||0; pay+=escrowIn;
+      let qPay=payoff(q.sheet,q.choice,e.choice,u)-qEsc+eEsc;
+      per[e.uid]={sheet:e.sheet,choice:e.choice,belief:e.belief,reason:e.reason,bond:!!e.bond,bondAmt:e.bond?(e.bondAmt??st.bondAmt):null,pBond:q.bond?(q.bondAmt??st.bondAmt):null,pChoice:q.choice,pSheet:q.sheet,pay,pPay:qPay,bondLost,escrowIn,pairType:`${e.sheet}–${q.sheet}`};
+    }
+  } else {
+    const partner=matchOneshot(entries,st.matching);
+    for(const e of entries){
+      const m=partner[e.uid]; if(!m) continue; const q=m.p;
+      if(!m.mutual) reused++;
+      per[e.uid]={sheet:e.sheet,choice:e.choice,belief:e.belief,reason:e.reason,pChoice:q.choice,pSheet:q.sheet,pay:payoff(e.sheet,e.choice,q.choice,u),pPay:m.mutual?payoff(q.sheet,q.choice,e.choice,u):null,pairType:`${e.sheet}–${q.sheet}`};
+    }
+  }
+  await S.db.doc(`game/res-${st.session}-${r}`).set({round:r,type:st.roundType,bond:!!st.bond,u,reused,per});
+  await setPhase("revealed");
+  S.viewRound=r; wire();
+}
+
+boot();
+</script>
+
+</body>
+</html>
