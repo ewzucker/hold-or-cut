@@ -97,6 +97,9 @@ details summary{cursor:pointer;font-weight:600}
 .screenqr{width:min(52vh,420px);max-width:100%;aspect-ratio:1;background:#ffffff;padding:12px;border-radius:8px}
 .screenqr img,.screenqr canvas{width:100%!important;height:auto!important;image-rendering:pixelated}
 .screenurl{font-size:clamp(20px,3vw,34px);overflow-wrap:anywhere}
+.roundclock{font-size:15px;font-weight:600;color:var(--accent)}
+.roundclock.late{color:var(--cut)}
+.screenclock{font-size:clamp(28px,4vw,48px);font-weight:600;color:var(--accent)}
 .screenround{font-family:var(--f-display);font-weight:700;font-size:clamp(20px,2.4vw,30px)}
 @media (max-width:760px){.screenjoin{grid-template-columns:minmax(0,1fr)}}
 .pairrow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:4px 16px;padding:8px 0;border-bottom:1px solid var(--line)}
@@ -241,6 +244,39 @@ window.addEventListener("hashchange",()=>{ S.studentKey=""; S.screenKey=""; S.es
 document.addEventListener("click",e=>{ const b=e.target.closest("[data-hash]"); if(!b) return; const h=b.dataset.hash; if(h) location.hash=h; else history.replaceState(null,"",location.pathname+location.search); window.dispatchEvent(new HashChangeEvent("hashchange")); });
 
 
+
+/* ---- Round timers: 60 s for one-shot rounds, 90 s for FG–GF talk rounds (after escrow, when escrow is on) ---- */
+const CHOOSE_SECS={oneshot:60,fggf:90};
+function roundCloseAt(st,openedAt){
+  const choose=(CHOOSE_SECS[st.roundType]||60)*1000;
+  return openedAt + choose + ((st.roundType==="fggf"&&st.bond) ? 2*ESCROW_SECS*1000+ESCROW_GRACE : 0);
+}
+// A student's own deadline: the round's, or 90 s after their pair's escrow settles.
+function myDeadline(){
+  const st=S.state; if(!st||st.phase!=="open"||!st.closeAt) return null;
+  if(isEscrowRound()){ const f=escrowFlow(S.msgs,st.openedAt); return f.stage==="settled" ? Math.min(st.closeAt,(f.at||Date.now())+CHOOSE_SECS.fggf*1000) : null; }
+  return st.closeAt;
+}
+function tickRounds(){
+  const st=S.state; if(!st) return;
+  if(screenView()){ const c=$("screenClock"); if(c) c.textContent = (st.phase==="open"&&st.closeAt) ? clock(st.closeAt)+" left" : ""; return; }
+  if(ownerView()){
+    const c=$("consoleClock"); if(c) c.textContent = (st.phase==="open"&&st.closeAt) ? `Closes automatically in ${clock(st.closeAt)}` : "";
+    if(st.phase==="open" && st.closeAt && Date.now()>st.closeAt+1500 && !S.autoClosing){
+      S.autoClosing=true; guard(closeRound).finally(()=>{ S.autoClosing=false; });
+    }
+    return;
+  }
+  const el=$("roundClock"); if(!el) return;
+  const dl=myDeadline();
+  if(dl==null){ el.textContent = isEscrowRound() ? "Your time to choose starts once escrow is settled." : ""; el.classList.remove("late"); return; }
+  if(Date.now()>dl){
+    el.textContent="Time's up. Your choice wasn't submitted this round."; el.classList.add("late");
+    const sb=$("submitBtn"); if(sb) sb.disabled=true;
+    const fm=$("form"); if(fm) fm.disabled=true;
+  } else { el.textContent=`${clock(dl)} left to choose`; el.classList.remove("late"); }
+}
+setInterval(()=>{ try{ tickRounds(); }catch(e){} },1000);
 /* =================== PROJECTOR VIEW (#screen) =================== */
 function renderScreen(){
   const main=$("main"), st=S.state;
@@ -249,15 +285,20 @@ function renderScreen(){
   if(st.phase==="revealed" && S.res && S.res.round===st.round){
     S.screen=true; const saved=S.viewRound; S.viewRound=st.round;
     const html=resultsPanel(); S.screen=false; S.viewRound=saved;
-    main.innerHTML=`<div class="stack">${html}</div>`; S.screenKey="res";
-    bindPairGroups(main); return;
+    main.innerHTML=`<div class="stack">${html}${sheetRef(st.u)}</div>`; S.screenKey="res"; S.screenTablesKey="";
+    bindPairGroups(main);
+    const d=main.querySelector("details.card"); if(d){ d.open=!!S.screenTablesOpen; d.ontoggle=()=>{S.screenTablesOpen=d.open;}; }
+    return;
   }
   const key="join-"+st.session;
+  const tablesKey=st.u+"|"+st.roundType;
   if(S.screenKey!==key){
-    main.innerHTML=`<div class="card screenjoin"><div id="screenQR" class="screenqr"></div><div class="stack" style="gap:18px;min-width:0"><div><div class="label">Join on your phone or laptop</div><div class="screenurl mono">${esc(PAGE_URL.replace("https://",""))}</div></div><div id="screenRound" class="screenround"></div><div id="screenCounts" class="row" style="gap:40px"></div></div></div>`;
+    main.innerHTML=`<div class="card screenjoin"><div id="screenQR" class="screenqr"></div><div class="stack" style="gap:18px;min-width:0"><div><div class="label">Join on your phone or laptop</div><div class="screenurl mono">${esc(PAGE_URL.replace("https://",""))}</div></div><div id="screenRound" class="screenround"></div><div id="screenClock" class="screenclock mono"></div><div id="screenCounts" class="row" style="gap:40px"></div></div></div><div id="screenTables" style="margin-top:16px"></div>`;
     S.screenKey=key;
     if(window.QRCode) new QRCode($("screenQR"),{text:PAGE_URL,width:520,height:520,colorDark:"#000000",colorLight:"#ffffff",correctLevel:QRCode.CorrectLevel.M});
   }
+  if(S.screenTablesKey!==tablesKey || !$("screenTables").innerHTML){ const wasOpen=S.screenTablesOpen; $("screenTables").innerHTML=sheetRef(st.u); S.screenTablesKey=tablesKey; const d=$("screenTables").querySelector("details"); if(d){ d.open=!!wasOpen; d.ontoggle=()=>{S.screenTablesOpen=d.open;}; } }
+  tickRounds();
   const joined=S.players.length;
   const participants = st.roundType==="fggf" ? (S.pairs?Object.keys(S.pairs).length:0) : S.players.filter(p=>S.assign[p.uid]).length;
   const submitted=entriesForRound(st.round).length;
@@ -315,13 +356,14 @@ function renderStudent(){
     <div class="stack" style="gap:6px"><span class="label">1 · Your choice</span><div class="choice"><button type="button" class="hold" id="chHold" aria-pressed="false">HOLD</button><button type="button" class="cut" id="chCut" aria-pressed="false">CUT</button></div></div>
     <label class="stack" style="gap:6px"><span class="label">2 · In one sentence, why did you choose this?</span><textarea id="reason" maxlength="400"></textarea></label>
     ${isEscrowRound()?`<p class="muted" id="escrowGate" style="margin:0">You can submit once escrow is settled.</p>`:""}
+    <p class="roundclock mono" id="roundClock" style="margin:0"></p>
     <div><button class="primary" id="submitBtn">Submit choice</button></div></fieldset>`;
   setStudent(`open-${st.round}`,`<div class="stack">${head}${sheetBody}${chatBlock(m,false)}${form}</div>`,()=>{
     S.draft={choice:null};
     const setC=c=>{S.draft.choice=c;$("chHold").setAttribute("aria-pressed",c==="hold");$("chCut").setAttribute("aria-pressed",c==="cut");};
     $("chHold").onclick=()=>setC("hold"); $("chCut").onclick=()=>setC("cut");
     $("submitBtn").onclick=submitChoice;
-    renderChat();
+    renderChat(); tickRounds();
   });
 }
 function setStudent(key,html,after){
@@ -343,20 +385,20 @@ function escrowFlow(msgs,openedAt,now=Date.now()){
   const first=L.find(x=>x.type==="demand"||x.type==="nodemand");
   if(!first){
     const dl=(openedAt||now)+ms;
-    if(now>dl+ESCROW_GRACE) return {stage:"settled",status:"none",amount:0,why:"timeout"};
+    if(now>dl+ESCROW_GRACE) return {stage:"settled",status:"none",amount:0,why:"timeout",at:dl+ESCROW_GRACE};
     return {stage:"demand",deadline:dl,amount:0};
   }
-  if(first.type==="nodemand") return {stage:"settled",status:"none",amount:0,why:"chosen"};
+  if(first.type==="nodemand") return {stage:"settled",status:"none",amount:0,why:"chosen",at:first.at};
   const ans=L.find(x=>(x.type==="accept"||x.type==="decline")&&x.at>=first.at);
-  if(ans) return {stage:"settled",status:ans.type==="accept"?"accepted":"declined",amount:first.amount,why:"chosen"};
+  if(ans) return {stage:"settled",status:ans.type==="accept"?"accepted":"declined",amount:first.amount,why:"chosen",at:ans.at};
   const dl=first.at+ms;
-  if(now>dl+ESCROW_GRACE) return {stage:"settled",status:"declined",amount:first.amount,why:"timeout"};
+  if(now>dl+ESCROW_GRACE) return {stage:"settled",status:"declined",amount:first.amount,why:"timeout",at:dl+ESCROW_GRACE};
   return {stage:"answer",deadline:dl,amount:first.amount};
 }
 function escrowState(msgs){ const f=escrowFlow(msgs,S.state&&S.state.openedAt,Infinity); return {status:f.status==="accepted"?"accepted":f.status,amount:f.amount}; }
 function isEscrowRound(){ const st=S.state; return !!(st&&st.roundType==="fggf"&&st.bond); }
 function escrowSettled(){ return !isEscrowRound() || escrowFlow(S.msgs,S.state.openedAt).stage==="settled"; }
-const clock=dl=>{ const sec=Math.max(0,Math.ceil((dl-Date.now())/1000)); return `0:${String(sec).padStart(2,"0")}`; };
+const clock=dl=>{ const sec=Math.max(0,Math.ceil((dl-Date.now())/1000)); return `${Math.floor(sec/60)}:${String(sec%60).padStart(2,"0")}`; };
 function msgHTML(x,role){
   const who=x.role===role?"You":"Your rival";
   if(x.type==="demand") return `<div class="msg sys">${x.role===role?"You asked":"Your rival asks"} GF to put $${x.amount}M in escrow</div>`;
@@ -411,7 +453,8 @@ function renderEscrow(){
   const acts=$("escrowActions"); if(acts&&f.deadline&&Date.now()>f.deadline) acts.hidden=true;
   // no submitting until escrow is settled
   const settled=f.stage==="settled";
-  const sb=$("submitBtn"); if(sb&&!S.submitting) sb.disabled=!settled;
+  const late=(()=>{ const dl=settled?myDeadline():null; return dl!=null&&Date.now()>dl; })();
+  const sb=$("submitBtn"); if(sb&&!S.submitting) sb.disabled=!settled||late;
   const gate=$("escrowGate"); if(gate) gate.hidden=settled;
   if(!settled) S.escrowTimer=setTimeout(renderEscrow,1000);
 }
@@ -450,6 +493,7 @@ async function submitChoice(){
   if(!reason){ toast("Add one sentence on why."); return; }
   if(!c){ toast("Choose HOLD or CUT."); return; }
   if(!escrowSettled()){ toast("Wait until escrow is settled."); return; }
+  const dl=myDeadline(); if(dl!=null&&Date.now()>dl){ toast("Time's up for this round."); return; }
   const btn=$("submitBtn"); btn.disabled=true; S.submitting=true;
   try{ await S.db.doc("players/"+S.uid).update({subs:{[S.state.round]:{reason,choice:c,at:Date.now()}}}); }
   catch(e){ btn.disabled=false; toast("Couldn't submit. Try again."); }
@@ -503,7 +547,7 @@ function renderOwner(){
 
   const steps = {
     lobby:`<button class="primary" id="openBtn">Launch round ${r}</button>${st.roundType==="fggf"?"":`<span class="muted" style="font-size:13px">Students can join after launch</span>`}`,
-    open:`<button class="primary" id="closeBtn">Close choices</button>`,
+    open:`<button class="primary" id="closeBtn">Close choices now</button><span class="muted mono" id="consoleClock" style="font-size:13px"></span>`,
     closed:`<button class="primary" id="revealBtn">Match and reveal</button> <button id="reopenBtn">Reopen</button>`,
     revealed:`<button class="primary" id="openBtn">Launch round ${r+1}</button>`
   }[st.phase];
@@ -533,8 +577,9 @@ function renderOwner(){
 
   main.querySelectorAll("[data-set]").forEach(b=>b.onclick=()=>setSetting(b.dataset.set,b.dataset.val));
   const on=(id,f)=>{const el=$(id); if(el) el.onclick=()=>guard(f);};
-  on("openBtn",openRound); on("closeBtn",closeRound); on("reopenBtn",()=>setPhase("open"));
+  on("openBtn",openRound); on("closeBtn",closeRound); on("reopenBtn",()=>S.db.doc("game/state").update({phase:"open",closeAt:Date.now()+(CHOOSE_SECS[S.state.roundType]||60)*1000}));
   const qb=$("qrBtn"); if(qb) qb.onclick=showQR;
+  tickRounds();
   on("revealBtn",matchReveal); on("botBtn",addBots);
   const bn=$("botN"); if(bn) bn.onchange=()=>{S.botN=Number(bn.value);};
   const bm=$("botMode"); if(bm) bm.onchange=()=>{S.botMode=bm.value; render();}; on("resetBtn",startSession);
@@ -586,7 +631,7 @@ function pairsSection(entries){
   <div class="stack" style="gap:6px">${lists}</div>${reusedNote}</div>`;
 }
 function sheetRef(u){
-  return `<details class="card"><summary>Payoff tables as students see them</summary><div class="stack" style="margin-top:12px">${["G","FG","GF","NG"].map(s=>`<div><h3>Firm ${s}</h3>${payTableHTML(s,u)}</div>`).join("")}</div></details>`;
+  return `<details class="card"><summary>Payoff tables</summary><div class="stack" style="margin-top:12px">${["G","FG","GF","NG"].map(s=>`<div><h3>Firm ${s}</h3>${payTableHTML(s,u)}</div>`).join("")}</div></details>`;
 }
 function resultsPanel(){
   const st=S.state, vr=S.viewRound;
@@ -833,7 +878,7 @@ async function assignSheets(){
 async function openRound(){
   const st=S.state;
   const r=st.phase==="revealed"?st.round+1:st.round;
-  const launch=async()=>{ await S.db.doc("game/state").update({round:r,phase:"open",openedAt:Date.now()}); S.viewRound=r; };
+  const launch=async()=>{ const t=Date.now(); await S.db.doc("game/state").update({round:r,phase:"open",openedAt:t,closeAt:roundCloseAt(st,t)}); S.viewRound=r; };
   if(st.roundType==="fggf"){
     // Everyone plays FG or GF this round: FG and GF keep their firms; G and NG fill whichever side is short.
     const ids=S.players.map(p=>p.uid).filter(u=>S.assign[u]);
