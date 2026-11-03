@@ -91,6 +91,14 @@ table.pay thead th{white-space:normal}
 .reasons div{padding:6px 0;border-bottom:1px solid var(--line);font-size:14px;overflow-wrap:anywhere}
 details summary{cursor:pointer;font-weight:600}
 .pairgroup{border-top:1px solid var(--line);padding-top:8px}
+.btnlink{display:inline-block;font-weight:600;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:9px 14px;text-decoration:none}
+.btnlink:hover{border-color:var(--accent)}
+.screenjoin{display:grid;grid-template-columns:auto minmax(0,1fr);gap:40px;align-items:center;padding:32px}
+.screenqr{width:min(52vh,420px);max-width:100%;aspect-ratio:1;background:#ffffff;padding:12px;border-radius:8px}
+.screenqr img,.screenqr canvas{width:100%!important;height:auto!important;image-rendering:pixelated}
+.screenurl{font-size:clamp(20px,3vw,34px);overflow-wrap:anywhere}
+.screenround{font-family:var(--f-display);font-weight:700;font-size:clamp(20px,2.4vw,30px)}
+@media (max-width:760px){.screenjoin{grid-template-columns:minmax(0,1fr)}}
 .pairrow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:4px 16px;padding:8px 0;border-bottom:1px solid var(--line)}
 .pairrow>.label{grid-column:1/-1}
 .pairside{min-width:0;overflow-wrap:anywhere}
@@ -158,7 +166,12 @@ function payTableHTML(sheet,u){
   <tr><th>You hold</th>${cell(me.HH,rv.HH)}${cell(me.HC,rv.CH)}</tr>
   <tr><th>You cut</th>${cell(me.CH,rv.HC)}${cell(me.CC,rv.CC)}</tr></tbody></table></div>`;
 }
-const SCENARIO = `You run one of two firms that dominate a regional market. Next quarter, each firm decides independently and simultaneously whether to <strong>hold</strong> price or <strong>cut</strong> price. You will not know who your rival is, and you play once. The rival payoffs shown are your firm's best estimate from market intelligence. Profits are in $ millions for the quarter.`;
+function scenario(st){
+  const know = st.roundType==="fggf"
+    ? `The rival payoffs are <strong>known with complete certainty</strong>.`
+    : `The rival payoffs shown are your firm's best estimate from market intelligence.`;
+  return `You run one of two firms that dominate a regional market. Next quarter, each firm decides independently and simultaneously whether to <strong>hold</strong> price or <strong>cut</strong> price. You will not know who your rival is, and you play once. ${know} Profits are in $ millions for the quarter.`;
+}
 
 /* ---------- subscriptions ---------- */
 function sub(name,key,make){
@@ -191,6 +204,9 @@ function wire(){
     sub("me",null);
     const vr=S.viewRound;
     sub("res",sid+"-"+vr,()=>db.doc(`game/res-${sid}-${vr}`).onSnapshot(s=>{S.res=s.exists?s.data():null; render();},onErr));
+  } else if(screenView()){
+    sub("me",null);
+    sub("res",sid+"-"+st.round,()=>db.doc(`game/res-${sid}-${st.round}`).onSnapshot(s=>{S.res=s.exists?s.data():null; render();},onErr));
   } else {
     sub("me",S.uid,()=>db.doc("players/"+S.uid).onSnapshot(s=>{S.me=s.exists?s.data():null; render();},onErr));
     sub("res",sid+"-"+st.round,()=>db.doc(`game/res-${sid}-${st.round}`).onSnapshot(s=>{S.res=s.exists?s.data():null; render();},onErr));
@@ -198,9 +214,9 @@ function wire(){
   if(st.roundType==="fggf"){
     sub("pairs",sid+"-"+st.round,()=>db.doc(`game/pairs-${sid}-${st.round}`).onSnapshot(s=>{S.pairs=s.exists?s.data().map:null; wire(); render();},onErr));
   } else { sub("pairs",null); S.pairs=null; }
-  if(S.owner && st.roundType==="fggf" && st.bond && st.phase==="open" && S.pairs) escrowBotsStart(S.pairs, st.round);
+  if(S.owner && !screenView() && st.roundType==="fggf" && st.bond && st.phase==="open" && S.pairs) escrowBotsStart(S.pairs, st.round);
   else if(Object.keys(escrowBot.chats).length && st.phase!=="open") escrowBotsStop();
-  const myPair = !ownerView() && S.pairs && S.pairs[S.uid];
+  const myPair = !ownerView() && !screenView() && S.pairs && S.pairs[S.uid];
   if(myPair){
     sub("chat",myPair.chat,()=>db.collection(`chats/${myPair.chat}/msgs`).orderBy("at").limit(300).onSnapshot(q=>{S.msgs=q.docs.map(d=>d.data()); renderChat();},onErr));
   } else { sub("chat",null); S.msgs=[]; }
@@ -215,14 +231,43 @@ function render(){
     pill.className=p[0]; pill.textContent=p[1];
   }
   const bar=$("previewBar");
-  if(S.owner && !ownerView()){ bar.hidden=false; bar.innerHTML=`<span>Student preview. You're seeing what a student sees.</span><button data-hash="">Back to instructor console</button>`; }
+  if(S.owner && !ownerView() && !screenView()){ bar.hidden=false; bar.innerHTML=`<span>Student preview. You're seeing what a student sees.</span><button data-hash="">Back to instructor console</button>`; }
   else bar.hidden=true;
-  ownerView() ? renderOwner() : renderStudent();
+  screenView() ? renderScreen() : ownerView() ? renderOwner() : renderStudent();
 }
-function ownerView(){ return S.owner && location.hash!=="#student"; }
-window.addEventListener("hashchange",()=>{ S.studentKey=""; S.viewRound=null; if(S.db){ wire(); render(); } });
+function ownerView(){ return S.owner && location.hash!=="#student" && location.hash!=="#screen"; }
+function screenView(){ return S.owner && location.hash==="#screen"; }
+window.addEventListener("hashchange",()=>{ S.studentKey=""; S.screenKey=""; S.escrowKey=""; S.viewRound=null; if(S.db){ wire(); render(); } });
 document.addEventListener("click",e=>{ const b=e.target.closest("[data-hash]"); if(!b) return; const h=b.dataset.hash; if(h) location.hash=h; else history.replaceState(null,"",location.pathname+location.search); window.dispatchEvent(new HashChangeEvent("hashchange")); });
 
+
+/* =================== PROJECTOR VIEW (#screen) =================== */
+function renderScreen(){
+  const main=$("main"), st=S.state;
+  $("app").classList.remove("narrow"); main.className="";
+  if(!st){ main.innerHTML=`<div class="card"><p style="margin:0">Waiting for the game to start.</p></div>`; S.screenKey=""; return; }
+  if(st.phase==="revealed" && S.res && S.res.round===st.round){
+    S.screen=true; const saved=S.viewRound; S.viewRound=st.round;
+    const html=resultsPanel(); S.screen=false; S.viewRound=saved;
+    main.innerHTML=`<div class="stack">${html}</div>`; S.screenKey="res";
+    bindPairGroups(main); return;
+  }
+  const key="join-"+st.session;
+  if(S.screenKey!==key){
+    main.innerHTML=`<div class="card screenjoin"><div id="screenQR" class="screenqr"></div><div class="stack" style="gap:18px;min-width:0"><div><div class="label">Join on your phone or laptop</div><div class="screenurl mono">${esc(PAGE_URL.replace("https://",""))}</div></div><div id="screenRound" class="screenround"></div><div id="screenCounts" class="row" style="gap:40px"></div></div></div>`;
+    S.screenKey=key;
+    if(window.QRCode) new QRCode($("screenQR"),{text:PAGE_URL,width:520,height:520,colorDark:"#000000",colorLight:"#ffffff",correctLevel:QRCode.CorrectLevel.M});
+  }
+  const joined=S.players.length;
+  const participants = st.roundType==="fggf" ? (S.pairs?Object.keys(S.pairs).length:0) : S.players.filter(p=>S.assign[p.uid]).length;
+  const submitted=entriesForRound(st.round).length;
+  const box=(l,v)=>`<div><div class="label">${l}</div><div class="big mono">${v}</div></div>`;
+  $("screenCounts").innerHTML = box("Joined",joined) + (st.phase==="lobby"?"":box("Submitted",`${submitted}<span class="muted" style="font-size:.5em">/${participants}</span>`));
+  $("screenRound").textContent = st.phase==="lobby" ? `Round ${st.round} starts soon.` : st.phase==="open" ? `Round ${st.round} is open. Make your choice on your device.` : st.phase==="closed" ? `Round ${st.round}: choices are closed. Results are coming up.` : `Round ${st.round}: results are coming up.`;
+}
+function bindPairGroups(root){
+  root.querySelectorAll("details.pairgroup").forEach(d=>{ const k=d.querySelector("summary").textContent.split(" ")[0]; if(S.openGroups&&S.openGroups.has(k)) d.open=true; d.ontoggle=()=>{ S.openGroups=S.openGroups||new Set(); d.open?S.openGroups.add(k):S.openGroups.delete(k); }; });
+}
 /* =================== STUDENT =================== */
 function myStatus(){
   const st=S.state, me=S.me;
@@ -246,7 +291,7 @@ function renderStudent(){
   if(!m.sheet){ setStudent("wait-sheet",`<div class="stack"><h2>You're in</h2><p class="muted" style="margin:0">Waiting for your instructor to launch the game. Keep this page open.</p></div>`); return; }
 
   const head=`<div class="row" style="justify-content:space-between"><div><div class="label">Your firm${st.roundType==="fggf"?" this round":""}</div><div class="sheetcode">${esc(m.sheet)}</div></div><div class="muted mono" style="font-size:13px">Round ${st.round}</div></div>${m.switched?`<p class="note" style="margin:0">This round, everyone runs an FG or a GF firm, so your payoffs differ from earlier rounds. Check your table.</p>`:""}`;
-  const sheetBody=`<p style="margin:0">${SCENARIO}</p>${payTableHTML(m.sheet,st.u)}`;
+  const sheetBody=`<p style="margin:0">${scenario(st)}</p>${payTableHTML(m.sheet,st.u)}`;
 
   if(st.phase==="revealed"){
     let body;
@@ -269,6 +314,7 @@ function renderStudent(){
   const form=`<fieldset class="stack" id="form">
     <div class="stack" style="gap:6px"><span class="label">1 · Your choice</span><div class="choice"><button type="button" class="hold" id="chHold" aria-pressed="false">HOLD</button><button type="button" class="cut" id="chCut" aria-pressed="false">CUT</button></div></div>
     <label class="stack" style="gap:6px"><span class="label">2 · In one sentence, why did you choose this?</span><textarea id="reason" maxlength="400"></textarea></label>
+    ${isEscrowRound()?`<p class="muted" id="escrowGate" style="margin:0">You can submit once escrow is settled.</p>`:""}
     <div><button class="primary" id="submitBtn">Submit choice</button></div></fieldset>`;
   setStudent(`open-${st.round}`,`<div class="stack">${head}${sheetBody}${chatBlock(m,false)}${form}</div>`,()=>{
     S.draft={choice:null};
@@ -290,21 +336,33 @@ function chatBlock(m,locked){
   ${locked?"":`<div class="row" style="flex-wrap:nowrap"><input id="chatIn" maxlength="300" placeholder="Message your rival" style="flex:1;min-width:0"><button id="chatSend">Send</button></div>`}
   ${st.bond?`<div id="escrowArea" class="stack" style="gap:8px" data-locked="${locked?1:0}"></div>`:""}</div>`;
 }
-function escrowState(msgs){
-  let e={demand:null,status:"none",amount:0};
-  for(const x of msgs||[]){
-    if(e.status==="accepted") break;
-    if(x.type==="demand"){ e={demand:x.amount,status:"pending",amount:x.amount}; }
-    else if(x.type==="accept"&&e.status==="pending"&&x.amount===e.demand){ e.status="accepted"; }
-    else if(x.type==="decline"&&e.status==="pending"){ e.status="declined"; }
+const ESCROW_SECS=45, ESCROW_GRACE=3000;
+// One demand (or "no escrow") from FG within 45 s of launch; then one answer from GF within 45 s. Silence settles it.
+function escrowFlow(msgs,openedAt,now=Date.now()){
+  const L=msgs||[], ms=ESCROW_SECS*1000;
+  const first=L.find(x=>x.type==="demand"||x.type==="nodemand");
+  if(!first){
+    const dl=(openedAt||now)+ms;
+    if(now>dl+ESCROW_GRACE) return {stage:"settled",status:"none",amount:0,why:"timeout"};
+    return {stage:"demand",deadline:dl,amount:0};
   }
-  return e;
+  if(first.type==="nodemand") return {stage:"settled",status:"none",amount:0,why:"chosen"};
+  const ans=L.find(x=>(x.type==="accept"||x.type==="decline")&&x.at>=first.at);
+  if(ans) return {stage:"settled",status:ans.type==="accept"?"accepted":"declined",amount:first.amount,why:"chosen"};
+  const dl=first.at+ms;
+  if(now>dl+ESCROW_GRACE) return {stage:"settled",status:"declined",amount:first.amount,why:"timeout"};
+  return {stage:"answer",deadline:dl,amount:first.amount};
 }
+function escrowState(msgs){ const f=escrowFlow(msgs,S.state&&S.state.openedAt,Infinity); return {status:f.status==="accepted"?"accepted":f.status,amount:f.amount}; }
+function isEscrowRound(){ const st=S.state; return !!(st&&st.roundType==="fggf"&&st.bond); }
+function escrowSettled(){ return !isEscrowRound() || escrowFlow(S.msgs,S.state.openedAt).stage==="settled"; }
+const clock=dl=>{ const sec=Math.max(0,Math.ceil((dl-Date.now())/1000)); return `0:${String(sec).padStart(2,"0")}`; };
 function msgHTML(x,role){
   const who=x.role===role?"You":"Your rival";
   if(x.type==="demand") return `<div class="msg sys">${x.role===role?"You asked":"Your rival asks"} GF to put $${x.amount}M in escrow</div>`;
   if(x.type==="accept") return `<div class="msg sys">${who} put $${x.amount}M in escrow</div>`;
   if(x.type==="decline") return `<div class="msg sys">${who} declined the $${x.amount}M escrow</div>`;
+  if(x.type==="nodemand") return `<div class="msg sys">${x.role===role?"You chose":"Your rival chose"} no escrow</div>`;
   if(x.type==="bond") return "";
   return `<div class="msg ${x.role===role?"me":""}">${esc(x.text)}</div>`;
 }
@@ -319,24 +377,43 @@ function renderChat(){
 }
 function renderEscrow(){
   const area=$("escrowArea"); if(!area) return;
-  const locked=area.dataset.locked==="1", role=myRole(), e=escrowState(S.msgs);
-  let h="";
-  if(e.status==="accepted"){
-    h=`<div class="note">${role==="GF"?`You put $${e.amount}M in escrow. If you cut, it's paid to your rival.`:`Your rival put $${e.amount}M in escrow. If they cut, it's paid to you.`}</div>`;
-  } else if(role==="FG"){
-    const pick=S.escrowPick||"";
-    const status = e.status==="pending"?`Waiting for your rival to answer your $${e.amount}M demand. You can change it.`:e.status==="declined"?`Your rival declined $${e.amount}M. You can make another demand.`:`Ask your rival to put money in escrow. If they cut, it's paid to you.`;
-    h=`<div class="muted" style="font-size:14px">${status}</div>${locked?"":`<div class="row"><select id="escrowAmt" aria-label="Escrow amount"><option value="">Amount</option>${Array.from({length:11},(_,i)=>i+1).map(n=>`<option value="${n}" ${String(n)===String(pick)?"selected":""}>$${n}M</option>`).join("")}</select><button id="demandBtn">Demand escrow</button></div>`}`;
+  clearTimeout(S.escrowTimer);
+  const locked=area.dataset.locked==="1", role=myRole(), f=escrowFlow(S.msgs,S.state.openedAt);
+  const key=f.stage+"|"+(f.status||"")+"|"+f.amount+"|"+locked+"|"+role;
+  if(S.escrowKey!==key || !area.innerHTML){
+    S.escrowKey=key;
+    let h="";
+    if(f.stage==="settled"){
+      let msg;
+      if(f.status==="accepted") msg = role==="GF"?`You put $${f.amount}M in escrow. If you cut, it's paid to your rival.`:`Your rival put $${f.amount}M in escrow. If they cut, it's paid to you.`;
+      else if(f.status==="declined") msg = f.why==="timeout" ? (role==="GF"?`You didn't answer in time, so there's no escrow.`:`Your rival didn't answer in time, so there's no escrow.`) : (role==="GF"?`You declined the $${f.amount}M escrow.`:`Your rival declined the $${f.amount}M escrow.`);
+      else msg = f.why==="timeout" ? (role==="FG"?`Time ran out before you made a demand, so there's no escrow.`:`Your rival didn't make a demand, so there's no escrow.`) : (role==="FG"?`You chose no escrow.`:`Your rival chose no escrow.`);
+      h=`<div class="note">${msg}${locked?"":" You can now make your choice."}</div>`;
+    } else if(f.stage==="demand"){
+      h = role==="FG"
+        ? `<div><strong>Make one escrow demand.</strong> <span class="mono" id="escrowClock">${clock(f.deadline)}</span> left</div><div class="muted" style="font-size:14px">Ask your rival to put money in escrow. If they cut, it's paid to you. You get one demand, and you can't change it.</div><div class="row" id="escrowActions"><select id="escrowAmt" aria-label="Escrow amount"><option value="">Amount</option>${Array.from({length:11},(_,i)=>i+1).map(n=>`<option value="${n}" ${String(n)===String(S.escrowPick||"")?"selected":""}>$${n}M</option>`).join("")}</select><button class="primary" id="demandBtn">Demand escrow</button><button id="noDemandBtn">No escrow</button></div>`
+        : `<div>Waiting for your rival's escrow demand: <span class="mono" id="escrowClock">${clock(f.deadline)}</span> left.</div>`;
+    } else {
+      h = role==="GF"
+        ? `<div><strong>Your rival asks you to put $${f.amount}M in escrow.</strong> If you cut, it's paid to your rival; if you hold, you keep it.</div><div><span class="mono" id="escrowClock">${clock(f.deadline)}</span> left to answer. If you don't answer, it counts as a decline.</div><div class="row" id="escrowActions"><button class="primary" id="acceptBtn">Put $${f.amount}M in escrow</button><button id="declineBtn">Decline</button></div>`
+        : `<div>Waiting for your rival to answer your $${f.amount}M demand: <span class="mono" id="escrowClock">${clock(f.deadline)}</span> left.</div>`;
+    }
+    area.innerHTML=h;
+    const sel=$("escrowAmt"); if(sel) sel.onchange=()=>{S.escrowPick=sel.value;};
+    const d=$("demandBtn"); if(d) d.onclick=()=>{ const v=Number($("escrowAmt").value); if(!v){ toast("Choose an amount."); return; } d.disabled=true; escrowMsg("demand",v); };
+    const nd=$("noDemandBtn"); if(nd) nd.onclick=()=>{ nd.disabled=true; escrowMsg("nodemand",0); };
+    const a=$("acceptBtn"); if(a) a.onclick=()=>{ a.disabled=true; acceptEscrow(f.amount); };
+    const n=$("declineBtn"); if(n) n.onclick=()=>{ n.disabled=true; escrowMsg("decline",f.amount); };
   } else {
-    if(e.status==="pending") h=`<div><strong>Your rival asks you to put $${e.amount}M in escrow.</strong> If you cut, it's paid to your rival; if you hold, you keep it. Decide before you submit your choice.</div>${locked?"":`<div class="row"><button class="primary" id="acceptBtn">Put $${e.amount}M in escrow</button><button id="declineBtn">Decline</button></div>`}`;
-    else if(e.status==="declined") h=`<div class="muted" style="font-size:14px">You declined $${e.amount}M. Your rival may make another demand.</div>`;
-    else h=`<div class="muted" style="font-size:14px">Your rival can ask you to put money in escrow, which would be paid to them if you cut.</div>`;
+    const c=$("escrowClock"); if(c&&f.deadline) c.textContent=clock(f.deadline);
   }
-  area.innerHTML=h;
-  const sel=$("escrowAmt"); if(sel) sel.onchange=()=>{S.escrowPick=sel.value;};
-  const d=$("demandBtn"); if(d) d.onclick=()=>{ const v=Number($("escrowAmt").value); if(!v){ toast("Choose an amount."); return; } escrowMsg("demand",v); };
-  const a=$("acceptBtn"); if(a) a.onclick=()=>acceptEscrow(e.amount);
-  const n=$("declineBtn"); if(n) n.onclick=()=>escrowMsg("decline",e.amount);
+  // past the deadline, hide the buttons while the result settles
+  const acts=$("escrowActions"); if(acts&&f.deadline&&Date.now()>f.deadline) acts.hidden=true;
+  // no submitting until escrow is settled
+  const settled=f.stage==="settled";
+  const sb=$("submitBtn"); if(sb&&!S.submitting) sb.disabled=!settled;
+  const gate=$("escrowGate"); if(gate) gate.hidden=settled;
+  if(!settled) S.escrowTimer=setTimeout(renderEscrow,1000);
 }
 async function escrowMsg(type,amount){
   const p=S.pairs[S.uid];
@@ -372,9 +449,11 @@ async function submitChoice(){
   const reason=$("reason").value.trim(), c=S.draft.choice;
   if(!reason){ toast("Add one sentence on why."); return; }
   if(!c){ toast("Choose HOLD or CUT."); return; }
-  const btn=$("submitBtn"); btn.disabled=true;
+  if(!escrowSettled()){ toast("Wait until escrow is settled."); return; }
+  const btn=$("submitBtn"); btn.disabled=true; S.submitting=true;
   try{ await S.db.doc("players/"+S.uid).update({subs:{[S.state.round]:{reason,choice:c,at:Date.now()}}}); }
   catch(e){ btn.disabled=false; toast("Couldn't submit. Try again."); }
+  finally{ S.submitting=false; }
 }
 
 /* =================== INSTRUCTOR =================== */
@@ -447,7 +526,7 @@ function renderOwner(){
     <div class="muted" style="font-size:13px">${joined?(unassigned?`Assigning firms to ${unassigned} new arrival(s)…`:"Firms are assigned in matched pairs as students join (G–G, FG–GF, NG–NG), so every second arrival completes a pair."):"Share this page's link or QR code. Students appear here when they join."}</div>
     ${st.roundType==="fggf"&&L?`<div class="muted" style="font-size:13px">When you launch this round, everyone runs an FG or a GF firm for this round only. FG and GF players keep their firms; G and NG players are split between FG and GF. Each FG is paired with a GF to chat. With an odd number of players, one sits out.</div>`:""}
     <div class="stack" style="gap:6px"><div class="label">Test players</div><div class="row"><select id="botN" aria-label="Number of test players">${Array.from({length:40},(_,i)=>i+1).map(n=>`<option value="${n}" ${n===S.botN?"selected":""}>${n}</option>`).join("")}</select><select id="botMode" aria-label="How test players choose"><option value="textbook" ${S.botMode==="textbook"?"selected":""}>Textbook play</option><option value="classroom" ${S.botMode==="classroom"?"selected":""}>Classroom-like</option></select><button id="botBtn" ${st.phase==="closed"?"disabled":""}>Add test players</button></div><div class="muted" style="font-size:13px">${S.botMode==="textbook"?"Textbook: G, GF and FG cut; NG holds. With escrow on, a test FG demands $6M, a test GF accepts any demand of $5M or more and then holds, and a test FG holds once $5M or more is in escrow.":"Classroom-like: random choices, cutting 70% of the time for G, 75% for GF, 55% for FG and 25% for NG."}</div><div class="muted" style="font-size:13px">${bots?`${bots} in this session. `:""}${st.phase==="open"?(st.roundType==="fggf"?"FG–GF pairs are already set for this round, so new test players sit it out until the next round.":"Test players added now choose right away."):(st.phase==="closed"?"Choices are closed. Add test players after you reveal results.":"Test players added now choose when you launch the next round.")}</div></div>
-    <div class="row"><button id="qrBtn">Show QR code for students</button><button data-hash="student">Preview as a student</button></div>
+    <div class="row"><a class="btnlink" href="#screen" target="_blank" rel="noopener">Open projector view</a><button id="qrBtn">Show QR code for students</button><button data-hash="student">Preview as a student</button></div>
   </div>`;
 
   main.innerHTML=`<div class="grid2"><div class="stack">${controls}${roster}${actions}${sheetRef(st.u)}</div><div class="stack">${resultsPanel()}</div></div>`;
@@ -462,12 +541,12 @@ function renderOwner(){
   main.querySelectorAll("[data-vr]").forEach(b=>b.onclick=()=>{S.viewRound=Number(b.dataset.vr); wire(); render();});
   main.querySelectorAll("[data-rf]").forEach(b=>b.onclick=()=>{S.reasonFilter=b.dataset.rf; render();});
   main.querySelectorAll("[data-names]").forEach(b=>b.onclick=()=>{S.showNames=b.dataset.names==="1"; render();});
-  main.querySelectorAll("details.pairgroup").forEach((d,i)=>{ if(S.openGroups&&S.openGroups.has(d.querySelector("summary").textContent.split(" ")[0])) d.open=true; d.ontoggle=()=>{ S.openGroups=S.openGroups||new Set(); const k=d.querySelector("summary").textContent.split(" ")[0]; d.open?S.openGroups.add(k):S.openGroups.delete(k); }; });
+  bindPairGroups(main);
 }
 
 /* ---- Players are numbered by arrival; names show only when the instructor turns them on ---- */
 function playerNo(uid){ const list=S.players.slice().sort((a,b)=>(a.joinedAt||0)-(b.joinedAt||0)); const i=list.findIndex(p=>p.uid===uid); return i<0?"?":i+1; }
-function who(uid){ const p=S.players.find(x=>x.uid===uid); const n="#"+playerNo(uid); return (S.showNames&&p&&p.name)?n+" "+p.name:n; }
+function who(uid){ const p=S.players.find(x=>x.uid===uid); const n="#"+playerNo(uid); return (S.showNames&&!S.screen&&p&&p.name)?n+" "+p.name:n; }
 const FIRM_ORDER={G:0,FG:1,GF:2,NG:3};
 function pairsSection(entries){
   const byId=Object.fromEntries(entries.map(e=>[e.uid,e]));
@@ -482,6 +561,8 @@ function pairsSection(entries){
     const type=`${a.sheet}–${b.sheet}`;
     (groups[type]=groups[type]||[]).push({a,b,mutual});
   }
+  const pairProfit=x=>x.mutual&&x.a.pay!=null&&x.b.pay!=null ? x.a.pay+x.b.pay : -1e6+(x.a.pay||0);
+  for(const t in groups) groups[t].sort((x,y)=>pairProfit(y)-pairProfit(x));
   const types=Object.keys(groups).sort((x,y)=>{const [x1,x2]=x.split("–"),[y1,y2]=y.split("–"); return FIRM_ORDER[x1]-FIRM_ORDER[y1]||FIRM_ORDER[x2]-FIRM_ORDER[y2];});
   if(!types.length) return `<div class="card stack"><h2 style="margin:0">Pairs</h2><p class="muted" style="margin:0">No matched pairs this round.</p></div>`;
   const pc=(k,n)=>n?Math.round(100*k/n)+"%":"–";
@@ -499,7 +580,7 @@ function pairsSection(entries){
     return `<details class="pairgroup"><summary>${t} · ${g.length} pair${g.length===1?"":"s"}</summary><div class="stack" style="gap:8px;margin-top:8px">${g.map((x,i)=>`<div class="pairrow"><div class="label">Pair ${i+1}${x.mutual?"":" · re-used rival"}</div>${side(x.a)}${side(x.b)}</div>`).join("")}</div></details>`;
   }).join("");
   const reusedNote = types.some(t=>groups[t].some(x=>!x.mutual)) ? `<div class="muted" style="font-size:13px">A re-used rival is a classmate whose choice was used a second time because the count in that group was odd. Only the first player's payoff is shown.</div>` : "";
-  return `<div class="card stack"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Pairs</h2><div class="seg" role="group" aria-label="Names"><button data-names="0" aria-pressed="${!S.showNames}">Hide names</button><button data-names="1" aria-pressed="${!!S.showNames}">Show names</button></div></div>
+  return `<div class="card stack"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Pairs</h2>${S.screen?"":`<div class="seg" role="group" aria-label="Names"><button data-names="0" aria-pressed="${!S.showNames}">Hide names</button><button data-names="1" aria-pressed="${!!S.showNames}">Show names</button></div>`}</div>
   <div class="tablewrap"><table><thead><tr><th>Pair type</th><th>Pairs</th><th>Both held</th><th>Both cut</th><th>One of each</th><th>Average payoff</th></tr></thead><tbody>${rows}</tbody></table></div>
   ${S.res&&S.res.type==="fggf"&&S.res.bond?escrowSummary(entries):""}
   <div class="stack" style="gap:6px">${lists}</div>${reusedNote}</div>`;
@@ -512,7 +593,7 @@ function resultsPanel(){
   const revealed = S.res && S.res.round===vr;
   const entries = revealed ? Object.entries(S.res.per).map(([uid,e])=>({uid,...e})) : entriesForRound(vr);
   const by=stats(entries);
-  const tabs = st.round>1 ? `<div class="seg">${Array.from({length:st.round},(_,i)=>i+1).map(i=>`<button data-vr="${i}" aria-pressed="${i===vr}">Round ${i}</button>`).join("")}</div>` : "";
+  const tabs = (st.round>1 && !S.screen) ? `<div class="seg">${Array.from({length:st.round},(_,i)=>i+1).map(i=>`<button data-vr="${i}" aria-pressed="${i===vr}">Round ${i}</button>`).join("")}</div>` : "";
   const fg=pct(by.FG.cut,by.FG.n), ng=pct(by.NG.cut,by.NG.n), g=pct(by.G.cut,by.G.n), gf=pct(by.GF.cut,by.GF.n);
   const fmt=v=>v==null?"–":v+"%";
   const gap = fg!=null&&ng!=null ? (fg-ng>0?"+":"")+(fg-ng)+" pts" : "–";
@@ -596,40 +677,38 @@ function escrowBotsStart(P,r){
   const st=S.state; if(!S.owner||!P||st.roundType!=="fggf"||!st.bond) return;
   for(const [chat,pr] of Object.entries(botPairsInRound(P))){
     if(escrowBot.chats[chat]) continue;
-    const c=escrowBot.chats[chat]={r,...pr,msgs:[],busy:false,again:false,answered:new Set(),chosen:new Set(),demanded:false};
+    const c=escrowBot.chats[chat]={r,...pr,msgs:[],busy:false,again:false,answeredDemand:false,chosen:new Set(),demanded:false};
     c.off=S.db.collection(`chats/${chat}/msgs`).orderBy("at").limit(300).onSnapshot(q=>{ c.msgs=q.docs.map(d=>d.data()); escrowTick(chat); },onErr);
   }
+  // timers can settle escrow with no new message, so check every couple of seconds
+  if(!escrowBot.timer) escrowBot.timer=setInterval(()=>Object.keys(escrowBot.chats).forEach(escrowTick),2000);
 }
-function escrowBotsStop(){ for(const c of Object.values(escrowBot.chats)) c.off&&c.off(); escrowBot.chats={}; }
+function escrowBotsStop(){ for(const c of Object.values(escrowBot.chats)) c.off&&c.off(); escrowBot.chats={}; clearInterval(escrowBot.timer); escrowBot.timer=null; }
 async function escrowTick(chat){
   const c=escrowBot.chats[chat]; const st=S.state;
   if(!c||st.phase!=="open"||st.round!==c.r) return;
   if(c.busy){ c.again=true; return; } c.busy=true;
   try{
     const fg=botById(c.fgId), gf=botById(c.gfId), r=c.r;
-    const demands=c.msgs.filter(x=>x.type==="demand");
-    // a test FG opens with a demand once
-    if(fg&&fg.bot&&!demands.length&&!c.demanded){ c.demanded=true; const amt=fg.mode==="textbook"?6:3+rnd(6); await S.db.collection(`chats/${chat}/msgs`).add({role:"FG",type:"demand",amount:amt,at:Date.now()}); return; }
-    const e=escrowState(c.msgs);
-    // a test GF answers each new demand
-    const last=demands[demands.length-1];
-    if(gf&&gf.bot&&e.status==="pending"&&last&&!c.answered.has(last.at)&&!botHasChosen(gf.uid,r,c)){
-      c.answered.add(last.at);
-      if(botAccepts(gf,e.amount)){
-        await S.db.doc("players/"+gf.uid).update({subs:{[r]:{bond:true,bondAmt:e.amount}}});
-        await S.db.collection(`chats/${chat}/msgs`).add({role:"GF",type:"accept",amount:e.amount,at:Date.now()});
+    const f=escrowFlow(c.msgs,st.openedAt);
+    if(f.stage==="demand" && fg&&fg.bot && !c.demanded){
+      c.demanded=true; const amt=fg.mode==="textbook"?6:3+rnd(6);
+      await S.db.collection(`chats/${chat}/msgs`).add({role:"FG",type:"demand",amount:amt,at:Date.now()}); return;
+    }
+    if(f.stage==="answer" && gf&&gf.bot && !c.answeredDemand){
+      c.answeredDemand=true;
+      if(botAccepts(gf,f.amount)){
+        await S.db.doc("players/"+gf.uid).update({subs:{[r]:{bond:true,bondAmt:f.amount}}});
+        await S.db.collection(`chats/${chat}/msgs`).add({role:"GF",type:"accept",amount:f.amount,at:Date.now()});
       } else {
-        await S.db.collection(`chats/${chat}/msgs`).add({role:"GF",type:"decline",amount:e.amount,at:Date.now()});
+        await S.db.collection(`chats/${chat}/msgs`).add({role:"GF",type:"decline",amount:f.amount,at:Date.now()});
       }
       return;
     }
-    // once escrow is settled, test players choose
-    if(e.status==="accepted"){
-      if(gf&&gf.bot) await botChoose(gf,"GF",e.amount,r,c);
-      if(fg&&fg.bot) await botChoose(fg,"FG",e.amount,r,c);
-    } else if(e.status==="declined"){
-      if(fg&&fg.bot) await botChoose(fg,"FG",0,r,c);
-      if(gf&&gf.bot&&fg&&fg.bot) await botChoose(gf,"GF",0,r,c);
+    if(f.stage==="settled"){
+      const amt=f.status==="accepted"?f.amount:0;
+      if(gf&&gf.bot) await botChoose(gf,"GF",amt,r,c);
+      if(fg&&fg.bot) await botChoose(fg,"FG",amt,r,c);
     }
   } catch(err){ console.error(err); }
   finally{ c.busy=false; if(c.again){ c.again=false; escrowTick(chat); } }
@@ -637,7 +716,7 @@ async function escrowTick(chat){
 async function escrowBotsFinish(r){
   for(const [chat,pr] of Object.entries(botPairsInRound(S.pairs))){
     const msgs=(await S.db.collection(`chats/${chat}/msgs`).orderBy("at").limit(300).get()).docs.map(d=>d.data());
-    const e=escrowState(msgs), amt=e.status==="accepted"?e.amount:0;
+    const f=escrowFlow(msgs,S.state.openedAt,Infinity), amt=f.status==="accepted"?f.amount:0;
     const c=escrowBot.chats[chat];
     const fg=botById(pr.fgId), gf=botById(pr.gfId);
     if(gf&&gf.bot) await botChoose(gf,"GF",amt,r,c);
@@ -675,7 +754,7 @@ async function setSetting(k,v){
 async function setPhase(p){ await S.db.doc("game/state").update({phase:p}); }
 let assignTimer=null, assigning=false, lastAssign={sid:null,map:{}};
 function scheduleAssign(){
-  if(!S.owner||!S.state) return;
+  if(!S.owner||!S.state||screenView()) return;
   clearTimeout(assignTimer);
   assignTimer=setTimeout(async()=>{
     if(assigning) return scheduleAssign();
@@ -754,7 +833,7 @@ async function assignSheets(){
 async function openRound(){
   const st=S.state;
   const r=st.phase==="revealed"?st.round+1:st.round;
-  const launch=async()=>{ await S.db.doc("game/state").update({round:r,phase:"open"}); S.viewRound=r; };
+  const launch=async()=>{ await S.db.doc("game/state").update({round:r,phase:"open",openedAt:Date.now()}); S.viewRound=r; };
   if(st.roundType==="fggf"){
     // Everyone plays FG or GF this round: FG and GF keep their firms; G and NG fill whichever side is short.
     const ids=S.players.map(p=>p.uid).filter(u=>S.assign[u]);

@@ -21,7 +21,7 @@
   const fs = firebase.firestore();
   fs.settings({ ignoreUndefinedProperties: true });
 
-  const wantsInstructor = () => location.hash === "#instructor";
+  const wantsInstructor = () => location.hash === "#instructor" || location.hash === "#screen";
   const isInstructor = u => !!u && !u.isAnonymous && u.uid === cfg.instructorUid;
 
   function loginForm(msg) {
@@ -40,7 +40,7 @@
         try {
           const cred = await auth.signInWithEmailAndPassword(document.getElementById("loginEmail").value.trim(), document.getElementById("loginPass").value);
           if (!isInstructor(cred.user)) { await auth.signOut(); loginForm("That account isn't the instructor account set in config.js."); return; }
-          history.replaceState(null, "", location.pathname);
+          if (location.hash === "#instructor") history.replaceState(null, "", location.pathname);
           location.reload();
         } catch (err) { loginForm("Sign-in failed. Check the email and password."); }
       };
