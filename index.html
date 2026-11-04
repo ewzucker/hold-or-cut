@@ -794,7 +794,7 @@ async function startSession(){
   for(const b of S.players.filter(p=>p.bot)){ try{ await S.db.doc("players/"+b.uid).delete(); }catch(e){} }
   const sid=newId();
   S.resumed=true;
-  await S.db.doc("game/state").set({createdAt:Date.now(),session:sid,round:1,phase:"lobby",roundType:"oneshot",matching:"design",bond:false,bondAmt:6,u:S.state?.u??7});
+  await S.db.doc("game/state").set({createdAt:Date.now(),session:sid,round:1,phase:"lobby",roundType:"oneshot",matching:"design",bond:true,bondAmt:6,u:S.state?.u??7});
   S.viewRound=1; toast("Session started.");
 }
 async function setSetting(k,v){
