@@ -249,7 +249,7 @@ document.addEventListener("click",e=>{ const b=e.target.closest("[data-hash]"); 
 
 
 /* ---- Round timers: 60 s for one-shot rounds, 90 s for FG–GF talk rounds (after escrow, when escrow is on) ---- */
-const CHOOSE_SECS={oneshot:30,fggf:90};
+const CHOOSE_SECS={oneshot:45,fggf:90};
 function roundCloseAt(st,openedAt){
   const choose=(CHOOSE_SECS[st.roundType]||60)*1000;
   return openedAt + choose + ((st.roundType==="fggf"&&st.bond) ? 2*ESCROW_SECS*1000+ESCROW_GRACE : 0);
