@@ -250,14 +250,16 @@ document.addEventListener("click",e=>{ const b=e.target.closest("[data-hash]"); 
 
 /* ---- Round timers: 60 s for one-shot rounds, 90 s for FG–GF talk rounds (after escrow, when escrow is on) ---- */
 const CHOOSE_SECS={oneshot:45,fggf:90};
-function roundCloseAt(st,openedAt){
-  const choose=(CHOOSE_SECS[st.roundType]||60)*1000;
+const EARLY_BONUS_SECS=30; // rounds 1 and 2 get extra time while students learn the game
+function chooseSecs(type,round){ return (CHOOSE_SECS[type]||60) + (round<=2?EARLY_BONUS_SECS:0); }
+function roundCloseAt(st,openedAt,round){
+  const choose=chooseSecs(st.roundType,round)*1000;
   return openedAt + choose + ((st.roundType==="fggf"&&st.bond) ? 2*ESCROW_SECS*1000+ESCROW_GRACE : 0);
 }
 // A student's own deadline: the round's, or 90 s after their pair's escrow settles.
 function myDeadline(){
   const st=S.state; if(!st||st.phase!=="open"||!st.closeAt) return null;
-  if(isEscrowRound()){ const f=escrowFlow(S.msgs,st.openedAt); return f.stage==="settled" ? Math.min(st.closeAt,(f.at||Date.now())+CHOOSE_SECS.fggf*1000) : null; }
+  if(isEscrowRound()){ const f=escrowFlow(S.msgs,st.openedAt); return f.stage==="settled" ? Math.min(st.closeAt,(f.at||Date.now())+chooseSecs("fggf",st.round)*1000) : null; }
   return st.closeAt;
 }
 function tickRounds(){
@@ -584,7 +586,7 @@ function renderOwner(){
 
   main.querySelectorAll("[data-set]").forEach(b=>b.onclick=()=>setSetting(b.dataset.set,b.dataset.val));
   const on=(id,f)=>{const el=$(id); if(el) el.onclick=()=>guard(f);};
-  on("openBtn",openRound); on("closeBtn",closeRound); on("reopenBtn",()=>S.db.doc("game/state").update({phase:"open",closeAt:Date.now()+(CHOOSE_SECS[S.state.roundType]||60)*1000}));
+  on("openBtn",openRound); on("closeBtn",closeRound); on("reopenBtn",()=>S.db.doc("game/state").update({phase:"open",closeAt:Date.now()+chooseSecs(S.state.roundType,S.state.round)*1000}));
   const qb=$("qrBtn"); if(qb) qb.onclick=showQR;
   tickRounds();
   on("revealBtn",matchReveal); on("botBtn",addBots);
@@ -888,7 +890,7 @@ async function assignSheets(){
 async function openRound(){
   const st=S.state;
   const r=st.phase==="revealed"?st.round+1:st.round;
-  const launch=async()=>{ const t=Date.now(); await S.db.doc("game/state").update({round:r,phase:"open",openedAt:t,closeAt:roundCloseAt(st,t)}); S.viewRound=r; };
+  const launch=async()=>{ const t=Date.now(); await S.db.doc("game/state").update({round:r,phase:"open",openedAt:t,closeAt:roundCloseAt(st,t,r)}); S.viewRound=r; };
   if(st.roundType==="fggf"){
     // Everyone plays FG or GF this round: FG and GF keep their firms; G and NG fill whichever side is short.
     const ids=S.players.map(p=>p.uid).filter(u=>S.assign[u]);
