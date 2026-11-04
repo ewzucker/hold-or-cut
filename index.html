@@ -561,7 +561,10 @@ function renderOwner(){
       ${L?`<div class="muted" style="font-size:13px">Settings for round ${nextR}. They lock when you launch it.</div>`:`<div class="note" style="font-size:13px">Locked during round ${r}, so students' payoff tables don't change mid-round. You can change these once you've revealed this round's results.</div>`}
     </div>
   </div>`;
-  const actions=`<div class="card row">${steps}</div>`;
+  const actions=`<div class="card stack" style="gap:12px"><div class="row">${steps}</div>
+    <div class="row" style="border-top:1px solid var(--line);padding-top:12px">${S.confirmNew
+      ? `<span style="font-size:14px">This clears the class and all results. Students rejoin with the same link.</span><button class="primary" id="newGameYes">Yes, start a new game</button><button id="newGameNo">Cancel</button>`
+      : `<button id="newGameBtn">Start a new game</button>`}</div></div>`;
 
   const roster=`<div class="card stack">
     <h2 style="margin:0">Class</h2>
@@ -581,6 +584,9 @@ function renderOwner(){
   const qb=$("qrBtn"); if(qb) qb.onclick=showQR;
   tickRounds();
   on("revealBtn",matchReveal); on("botBtn",addBots);
+  const ng=$("newGameBtn"); if(ng) ng.onclick=()=>{ S.confirmNew=true; render(); };
+  const nn=$("newGameNo"); if(nn) nn.onclick=()=>{ S.confirmNew=false; render(); };
+  const ny=$("newGameYes"); if(ny) ny.onclick=()=>guard(async()=>{ S.confirmNew=false; S.openGroups=new Set(); S.showNames=false; await startSession(); });
   const bn=$("botN"); if(bn) bn.onchange=()=>{S.botN=Number(bn.value);};
   const bm=$("botMode"); if(bm) bm.onchange=()=>{S.botMode=bm.value; render();}; on("resetBtn",startSession);
   main.querySelectorAll("[data-vr]").forEach(b=>b.onclick=()=>{S.viewRound=Number(b.dataset.vr); wire(); render();});
