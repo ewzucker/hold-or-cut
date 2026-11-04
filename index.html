@@ -97,7 +97,10 @@ details summary{cursor:pointer;font-weight:600}
 .screenqr{width:min(52vh,420px);max-width:100%;aspect-ratio:1;background:#ffffff;padding:12px;border-radius:8px}
 .screenqr img,.screenqr canvas{width:100%!important;height:auto!important;image-rendering:pixelated}
 .screenurl{font-size:clamp(20px,3vw,34px);overflow-wrap:anywhere}
-.roundclock{font-size:15px;font-weight:600;color:var(--accent)}
+.roundclock{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:22px;font-weight:600;color:var(--accent);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 14px;text-align:center}
+.roundclock:empty{display:none}
+.roundclock.wait,.roundclock.late{font-family:var(--f-body);font-size:16px}
+.roundclock.late{color:var(--cut);border-color:var(--cut)}
 .roundclock.late{color:var(--cut)}
 .screenclock{font-size:clamp(28px,4vw,48px);font-weight:600;color:var(--accent)}
 .screenround{font-family:var(--f-display);font-weight:700;font-size:clamp(20px,2.4vw,30px)}
@@ -246,7 +249,7 @@ document.addEventListener("click",e=>{ const b=e.target.closest("[data-hash]"); 
 
 
 /* ---- Round timers: 60 s for one-shot rounds, 90 s for FG–GF talk rounds (after escrow, when escrow is on) ---- */
-const CHOOSE_SECS={oneshot:60,fggf:90};
+const CHOOSE_SECS={oneshot:30,fggf:90};
 function roundCloseAt(st,openedAt){
   const choose=(CHOOSE_SECS[st.roundType]||60)*1000;
   return openedAt + choose + ((st.roundType==="fggf"&&st.bond) ? 2*ESCROW_SECS*1000+ESCROW_GRACE : 0);
@@ -269,7 +272,8 @@ function tickRounds(){
   }
   const el=$("roundClock"); if(!el) return;
   const dl=myDeadline();
-  if(dl==null){ el.textContent = isEscrowRound() ? "Your time to choose starts once escrow is settled." : ""; el.classList.remove("late"); return; }
+  if(dl==null){ el.textContent = isEscrowRound() ? "Your time to choose starts once escrow is settled." : ""; el.classList.remove("late"); el.classList.add("wait"); return; }
+  el.classList.remove("wait");
   if(Date.now()>dl){
     el.textContent="Time's up. Your choice wasn't submitted this round."; el.classList.add("late");
     const sb=$("submitBtn"); if(sb) sb.disabled=true;
@@ -353,10 +357,10 @@ function renderStudent(){
 
   // open, not submitted
   const form=`<fieldset class="stack" id="form">
+    <div class="roundclock" id="roundClock" role="timer" aria-live="off"></div>
     <div class="stack" style="gap:6px"><span class="label">1 · Your choice</span><div class="choice"><button type="button" class="hold" id="chHold" aria-pressed="false">HOLD</button><button type="button" class="cut" id="chCut" aria-pressed="false">CUT</button></div></div>
     <label class="stack" style="gap:6px"><span class="label">2 · In one sentence, why did you choose this?</span><textarea id="reason" maxlength="400"></textarea></label>
     ${isEscrowRound()?`<p class="muted" id="escrowGate" style="margin:0">You can submit once escrow is settled.</p>`:""}
-    <p class="roundclock mono" id="roundClock" style="margin:0"></p>
     <div><button class="primary" id="submitBtn">Submit choice</button></div></fieldset>`;
   setStudent(`open-${st.round}`,`<div class="stack">${head}${sheetBody}${chatBlock(m,false)}${form}</div>`,()=>{
     S.draft={choice:null};
